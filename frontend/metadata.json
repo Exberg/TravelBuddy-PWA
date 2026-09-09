@@ -1,0 +1,7 @@
+{
+  "name": "Kinetic Companion",
+  "description": "High-contrast tactile AI travel companion featuring interactive itinerary planning, destination selection, and map exploration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
