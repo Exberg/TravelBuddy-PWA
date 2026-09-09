@@ -51,6 +51,18 @@ const DETAILS_FIELD_MASK = [
 ].join(",");
 
 export default defineChannel({
+  // This channel is called directly by the separately deployed Vite app.
+  // The eve agent channel has its own CORS setting, so custom channels must
+  // opt in independently.
+  cors: {
+    origin: [
+      "https://travel-buddy-pwa.vercel.app",
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+    ],
+    methods: ["GET"],
+    allowHeaders: ["authorization", "content-type"],
+  },
   routes: [
     GET("/places/search", async (request) => {
       const apiKey = process.env.GOOGLE_MAPS_API;
