@@ -44,19 +44,9 @@ function modelFromContext(value: unknown): TravelBuddyModelAlias | undefined {
     : undefined;
 }
 
-function hasTravelBuddyContext(value: unknown): boolean {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    Object.prototype.hasOwnProperty.call(value, "travelBuddy")
-  );
-}
-
-/** Reads the latest TravelBuddy client context, defaulting invalid input. */
-export function resolveRequestedModel(
+export function resolveTravelBuddyContext(
   messages: readonly { role?: unknown; content?: unknown }[],
-): TravelBuddyModelAlias {
+): Record<string, unknown> | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (message?.role !== "user") continue;
@@ -68,14 +58,31 @@ export function resolveRequestedModel(
       const contextJson = text.startsWith(CLIENT_CONTEXT_PREFIX)
         ? text.slice(CLIENT_CONTEXT_PREFIX.length)
         : text;
-      const parsed = JSON.parse(contextJson);
-      if (hasTravelBuddyContext(parsed)) {
-        return modelFromContext(parsed) ?? DEFAULT_MODEL_ALIAS;
+      const parsed = JSON.parse(contextJson) as { travelBuddy?: unknown };
+      if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        !Array.isArray(parsed) &&
+        typeof parsed.travelBuddy === "object" &&
+        parsed.travelBuddy !== null &&
+        !Array.isArray(parsed.travelBuddy)
+      ) {
+        return parsed.travelBuddy as Record<string, unknown>;
       }
     } catch {
       // Ordinary user messages are not JSON and are intentionally ignored.
     }
   }
 
-  return DEFAULT_MODEL_ALIAS;
+  return undefined;
+}
+
+/** Reads the latest TravelBuddy client context, defaulting invalid input. */
+export function resolveRequestedModel(
+  messages: readonly { role?: unknown; content?: unknown }[],
+): TravelBuddyModelAlias {
+  const travelBuddy = resolveTravelBuddyContext(messages);
+  return travelBuddy
+    ? modelFromContext({ travelBuddy }) ?? DEFAULT_MODEL_ALIAS
+    : DEFAULT_MODEL_ALIAS;
 }

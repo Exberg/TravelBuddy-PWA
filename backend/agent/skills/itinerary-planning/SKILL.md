@@ -1,0 +1,147 @@
+---
+description: Use when building a new travel itinerary, rebuilding one, or making a change that reshapes a day or more. Covers the research procedure, sequencing rules, and the exact JSON to pass to save_itinerary.
+---
+
+# Itinerary planning procedure
+
+This is the procedure for turning trip context into a published itinerary. Work through it in order.
+
+## 1. Establish the constraints
+
+Read the trip context and the conversation for:
+
+* destination
+* start and end date, or a trip length
+* total budget in RM and the number of travelers
+* dietary restrictions, allergies, halal requirements
+* must-visit places the traveler explicitly selected
+* interests, pace, and neighbourhood preferences
+
+Hard constraints, never to be violated: destination, dates or day count, total budget, allergies, dietary restrictions, halal requirements, and must-visit places.
+
+Interests, pace, cuisines, and neighbourhood preferences are optimization signals, not requirements.
+
+If you are editing an existing itinerary, call `get_itinerary` first.
+
+## 2. Research with real places
+
+1. Call `geocode_place` once on the destination to anchor coordinates.
+2. Use `search_places` with `near` set to those coordinates, asking for 10-15 results per call so one call covers several slots. Search by need across the whole trip — sights, cafes, local food, one evening option — rather than once per individual slot. Aim for four to six searches for a short trip, not one per stop.
+3. Call `place_details` only where the timing or the dietary answer actually decides the plan: a ticketed attraction, a place you suspect closes early, a food stop with a stated dietary requirement. Three or four detail lookups is usually enough. For everything else the search result's rating, price bucket and open-now flag are sufficient.
+4. Call `travel_time` for any hop where the traveler's plan depends on the duration: a long hop, a tight connection, or a choice between walking and driving.
+
+`travelFromPrevious` reports a measured hop. Only set it when `travel_time` actually returned that duration. If you did not measure the hop, omit the field. Never fill it with an estimate from coordinates, and never tell the traveler a tool was unavailable unless it actually returned an error.
+
+Every place in the itinerary must come from a lookup. Carry its `placeId`, `address`, `lat`, and `lng` into the stop so the app can deep-link it.
+
+Keep the research proportional. Every tool call adds a visible delay for someone waiting on a phone, so gather broadly, then assemble from what you already have. Stop researching once each slot has a real place; do not verify a plan you have already verified.
+
+## 3. Sequence the days
+
+* One geographic cluster per day. Name it in the day's `area`.
+* Order stops by clock time.
+* Leave realistic gaps. A museum is not 20 minutes; a hawker lunch is not 3 hours.
+* Meals at meal times. A full day has breakfast or morning coffee, lunch, and dinner.
+* Three to six stops per day. More than six is a plan nobody can follow.
+* Must-visit places first, then interests, then convenience.
+
+## 4. Cost it
+
+The budget is the total for the whole party for the whole trip unless the traveler said otherwise.
+
+Put an approximate `estimatedCostMyr` on stops that cost money, for the whole party. Omit it for free stops. Do not fabricate exact prices.
+
+If the trip cannot fit the budget, build the closest affordable version and say so in `assumptions`.
+
+## 5. Handle food safety
+
+Never ignore an allergy or dietary restriction.
+
+Set `halalStatus` on food stops only:
+
+* `certified` only when you actually confirmed certification
+* `muslim_friendly` or `pork_free_claimed` when place details or reviews support it
+* `unverified` otherwise
+
+Never claim a place is halal because its cuisine usually is. Put anything the traveler must check themselves in that stop's `warning`.
+
+## 6. Publish it
+
+Call `save_itinerary` with the complete plan and a one-line `changeNote`. The tool replaces the previous version, so always send every day and every stop, not a diff.
+
+The itinerary object looks like this:
+
+```json
+{
+  "title": "Penang Heritage Flow",
+  "destination": "George Town, Penang, Malaysia",
+  "startDate": "2026-10-14",
+  "endDate": "2026-10-16",
+  "travelers": 2,
+  "summary": "Three walkable days through the heritage core, with hawker food and one coastal sunset.",
+  "estimatedTotalMyr": 980,
+  "budgetMyr": 4500,
+  "assumptions": ["Assumed a hotel is already booked in the heritage core."],
+  "days": [
+    {
+      "day": 1,
+      "date": "2026-10-14",
+      "title": "Heritage core on foot",
+      "area": "George Town heritage core",
+      "stops": [
+        {
+          "id": "toh-soon-kopi",
+          "time": "08:30",
+          "segment": "morning",
+          "title": "Toh Soon Cafe",
+          "description": "Charcoal-toast kaya breakfast in a back lane before the heat.",
+          "category": "cafe",
+          "durationMinutes": 60,
+          "placeId": "ChIJ...",
+          "address": "184 Lebuh Campbell, George Town",
+          "lat": 5.4187,
+          "lng": 100.3327,
+          "estimatedCostMyr": 20,
+          "halalStatus": "unverified",
+          "warning": "Halal status not verified; confirm on arrival if it matters."
+        },
+        {
+          "id": "blue-mansion-tour",
+          "time": "11:00",
+          "segment": "morning",
+          "title": "Cheong Fatt Tze Blue Mansion",
+          "description": "Guided tour of the indigo courtyard house; tours run on a fixed schedule.",
+          "category": "sight",
+          "durationMinutes": 60,
+          "placeId": "ChIJ...",
+          "address": "14 Leith St, George Town",
+          "lat": 5.4212,
+          "lng": 100.3345,
+          "estimatedCostMyr": 50,
+          "bookingRequired": true,
+          "travelFromPrevious": { "mode": "walk", "durationMinutes": 9, "distanceMeters": 700 }
+        }
+      ]
+    }
+  ]
+}
+```
+
+Field rules:
+
+* `id` is kebab-case and unique across the entire itinerary. When editing, keep the existing id of every stop you are not replacing.
+* `time` is 24-hour `HH:MM`.
+* `segment` is `morning`, `afternoon`, or `evening`.
+* `category` is one of `sight`, `food`, `cafe`, `activity`, `nature`, `shopping`, `nightlife`, `transport`, `stay`, `rest`.
+* `travelFromPrevious.mode` is one of `walk`, `drive`, `transit`, `bicycle`, `ferry`. Omit it on the first stop of a day.
+* `date` is `YYYY-MM-DD`, and only when the trip dates are known.
+* Omit any optional field you do not have a real value for. Never emit `null`, `"unknown"`, or a placeholder.
+* Do not add fields that are not listed above.
+
+## 7. Editing an existing itinerary
+
+Apply the requested change and nothing else.
+
+Keep untouched days, stops, ids, times, and costs exactly as they were. Re-time only the stops the change affects, and re-check travel times for hops you altered.
+
+Then publish the complete itinerary with `save_itinerary`.

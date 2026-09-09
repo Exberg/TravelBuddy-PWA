@@ -7,12 +7,10 @@ import { usePlaces } from '../hooks/usePlaces';
 import { loadGoogleMaps } from '../lib/googleMaps';
 import { MapPinOverlay } from './MapPinOverlay';
 import { PlaceDetailSheet } from './PlaceDetailSheet';
+import { useTripStore } from '../store/tripStore';
 
 interface MapScreenProps {
-  destination: string;
   onNavigate: (screen: ScreenId) => void;
-  selectedPlaceIds: Set<string>;
-  onTogglePlace: (id: string) => void;
 }
 
 const DEFAULT_CENTER: google.maps.LatLngLiteral = { lat: 5.4141, lng: 100.3288 }; // Penang fallback
@@ -20,12 +18,18 @@ const DEFAULT_CENTER: google.maps.LatLngLiteral = { lat: 5.4141, lng: 100.3288 }
 // Keep pins clear of the header (top) and the docked bottom sheet.
 const MAP_PADDING: google.maps.Padding = { top: 96, right: 48, bottom: 220, left: 48 };
 
-export const MapScreen: React.FC<MapScreenProps> = ({
-  destination,
-  onNavigate,
-  selectedPlaceIds,
-  onTogglePlace,
-}) => {
+export const MapScreen: React.FC<MapScreenProps> = ({ onNavigate }) => {
+  const destination = useTripStore((state) => state.destination);
+  const mustVisitPlaces = useTripStore((state) => state.mustVisitPlaces);
+  const toggleMustVisitPlace = useTripStore((state) => state.toggleMustVisitPlace);
+
+  // The store keeps the full place (name and coordinates) because the agent
+  // needs those to plan around a must-visit, not just an opaque place id.
+  const selectedPlaceIds = useMemo(
+    () => new Set(mustVisitPlaces.map((place) => place.id)),
+    [mustVisitPlaces],
+  );
+
   const [activeFilter, setActiveFilter] = useState<'all' | PlaceCategory>('all');
   const [sheetSnap, setSheetSnap] = useState<BottomSheetSnap>('half');
   const [activePlaceId, setActivePlaceId] = useState<string | null>(null);
@@ -229,7 +233,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
             <PlaceDetailSheet
               place={activePlace}
               isSelected={selectedPlaceIds.has(activePlace.id)}
-              onToggleSelect={() => onTogglePlace(activePlace.id)}
+              onToggleSelect={() => toggleMustVisitPlace(activePlace)}
               onBack={() => setActivePlaceId(null)}
               onScroll={handleSheetScroll}
             />
@@ -323,7 +327,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                       aria-pressed={isSelected}
                       onClick={(event) => {
                         event.stopPropagation();
-                        onTogglePlace(place.id);
+                        toggleMustVisitPlace(place);
                       }}
                       className={`selection-control w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ml-2 transition-all active:scale-90 cursor-pointer ${
                         isSelected

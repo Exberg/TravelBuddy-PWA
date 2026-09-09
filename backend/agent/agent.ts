@@ -9,6 +9,10 @@ import {
   GEMINI_MODEL_ALIAS,
   resolveRequestedModel,
 } from "./model-selection";
+import {
+  hydrateItineraryState,
+  resolveClientItinerarySnapshot,
+} from "./lib/itinerary";
 
 const modelscope = createOpenAICompatible({
   name: "modelscope",
@@ -34,6 +38,9 @@ export default defineAgent({
   model: defineDynamic({
     events: {
       "step.started": (_event, ctx) => {
+        const itinerarySnapshot = resolveClientItinerarySnapshot(ctx.messages);
+        if (itinerarySnapshot) hydrateItineraryState(itinerarySnapshot);
+
         const selectedModel = resolveRequestedModel(ctx.messages);
 
         if (selectedModel === GEMINI_MODEL_ALIAS) {

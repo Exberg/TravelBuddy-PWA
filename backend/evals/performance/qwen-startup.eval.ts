@@ -7,7 +7,11 @@ export default defineEval({
   description:
     "Qwen begins its traveler-visible answer without a long hidden reasoning delay.",
   tags: ["performance", "qwen"],
-  timeoutMs: 60_000,
+  // The turn budget is generous because an itinerary request now does real
+  // Google Maps research before it finishes. The property under test is
+  // unchanged: the traveler must hear something within MAX_FIRST_ANSWER_LATENCY_MS,
+  // not that the whole plan is ready by then.
+  timeoutMs: 300_000,
   async test(t) {
     const startedAt = Date.now();
     const live = await t.start("Suggest a compact one-day itinerary for Singapore.", {

@@ -3,18 +3,18 @@ import { toast } from 'sonner';
 import { ScreenHeader } from './ScreenHeader';
 import { ScreenId } from '../types';
 import { usePlaceAutocomplete } from '../hooks/usePlaceAutocomplete';
+import { useTripStore } from '../store/tripStore';
 
 interface WhereToScreenProps {
   onNavigate: (screen: ScreenId) => void;
-  selectedDestination: string;
-  onSelectDestination: (dest: string) => void;
 }
 
-export const WhereToScreen: React.FC<WhereToScreenProps> = ({
-  onNavigate,
-  onSelectDestination,
-}) => {
-  const [searchQuery, setSearchQuery] = useState('Penang, Malaysia');
+export const WhereToScreen: React.FC<WhereToScreenProps> = ({ onNavigate }) => {
+  const setDestination = useTripStore((state) => state.setDestination);
+  const savedDescription = useTripStore((state) => state.destinationDescription);
+  const [searchQuery, setSearchQuery] = useState(
+    () => savedDescription ?? 'Penang, Malaysia',
+  );
   const [isResolving, setIsResolving] = useState(false);
   const { suggestions, isLoading: isSearching, error } = usePlaceAutocomplete(searchQuery);
 
@@ -37,13 +37,19 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({
     setIsResolving(true);
     try {
       const place = await suggestion.toPlace();
-      onSelectDestination(place.name);
+      // The full location string ("George Town, Penang, Malaysia") is what the
+      // agent plans against; the short name stays for UI headings.
+      setDestination(place.name, place.location);
       setSearchQuery(place.location);
     } catch {
       // Fall back to the prediction text if fetchFields fails (e.g. rate
       // limited); the user can still continue with a reasonable name.
-      onSelectDestination(suggestion.mainText);
-      setSearchQuery(`${suggestion.mainText}, ${suggestion.secondaryText}`.replace(/, $/, ''));
+      const description = `${suggestion.mainText}, ${suggestion.secondaryText}`.replace(
+        /, $/,
+        '',
+      );
+      setDestination(suggestion.mainText, description);
+      setSearchQuery(description);
       toast.warning('Using approximate location', {
         description: "We couldn't load full details for that place, but you can keep going.",
       });
@@ -57,7 +63,8 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({
       <ScreenHeader
         currentScreen="where"
         onNavigate={onNavigate}
-        showBack={false}
+        onBack={() => onNavigate('home')}
+        showBack
       />
 
       <main className="flex-1 overflow-y-auto no-scrollbar flex flex-col px-5 pt-16 w-full">

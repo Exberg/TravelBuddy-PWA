@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ScreenHeader } from './ScreenHeader';
 import { ScreenId } from '../types';
+import { useTripStore } from '../store/tripStore';
 
 interface BudgetScreenProps {
   onNavigate: (screen: ScreenId) => void;
 }
 
 export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigate }) => {
-  const [budget, setBudget] = useState(4500);
+  // Written straight to the store: the agent treats this as the trip's hard
+  // budget ceiling, so there is no separate "confirm" step to lose it at.
+  const budget = useTripStore((state) => state.budgetMyr);
+  const setBudget = useTripStore((state) => state.setBudgetMyr);
 
   const presetAmounts = [2500, 4500, 8000];
 

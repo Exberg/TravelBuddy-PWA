@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { ScreenHeader } from './ScreenHeader';
 import { ScreenId } from '../types';
+import { useTripStore } from '../store/tripStore';
 
 interface WhoScreenProps {
   onNavigate: (screen: ScreenId) => void;
 }
 
 export const WhoScreen: React.FC<WhoScreenProps> = ({ onNavigate }) => {
-  const [count, setCount] = useState(1);
+  // Party size drives per-person cost estimates in the itinerary, so it goes
+  // to the store rather than staying local to this screen.
+  const count = useTripStore((state) => state.travelers);
+  const setCount = useTripStore((state) => state.setTravelers);
   const [isBouncing, setIsBouncing] = useState(false);
 
   const minCount = 1;
@@ -20,14 +24,14 @@ export const WhoScreen: React.FC<WhoScreenProps> = ({ onNavigate }) => {
 
   const handleDecrement = () => {
     if (count > minCount) {
-      setCount((c) => c - 1);
+      setCount(count - 1);
       triggerBounce();
     }
   };
 
   const handleIncrement = () => {
     if (count < maxCount) {
-      setCount((c) => c + 1);
+      setCount(count + 1);
       triggerBounce();
     }
   };

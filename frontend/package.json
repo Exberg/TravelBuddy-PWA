@@ -21,8 +21,11 @@
     "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "react-router-dom": "7.18.3",
     "remark-gfm": "^4.0.1",
-    "sonner": "^2.0.8"
+    "sonner": "^2.0.8",
+    "tw-shimmer": "0.4.12",
+    "zustand": "5.0.8"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.14",

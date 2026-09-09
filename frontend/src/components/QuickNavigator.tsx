@@ -13,6 +13,7 @@ export const QuickNavigator: React.FC<QuickNavigatorProps> = ({
   const [isOpen, setIsOpen] = useState(false);
 
   const screens: { id: ScreenId; label: string; number: string }[] = [
+    { id: 'home', label: 'Home', number: '0' },
     { id: 'where', label: 'Where to?', number: '1' },
     { id: 'when', label: 'When?', number: '2' },
     { id: 'budget', label: 'Budget', number: '3' },
@@ -74,7 +75,7 @@ export const QuickNavigator: React.FC<QuickNavigatorProps> = ({
         title="Quick switch between screens"
       >
         <span className="material-symbols-outlined text-[15px]">layers</span>
-        <span>Screens ({screens.findIndex((s) => s.id === currentScreen) + 1}/6)</span>
+        <span>Screens ({screens.findIndex((s) => s.id === currentScreen) + 1}/{screens.length})</span>
       </button>
     </aside>
   );
