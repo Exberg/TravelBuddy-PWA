@@ -1,27 +1,182 @@
-import React, { useState } from 'react';
-import { PLACES } from '../data/mockData';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { ScreenHeader } from './ScreenHeader';
-import { ScreenId, PlaceItem } from '../types';
+import { BottomSheet, type BottomSheetSnap } from './BottomSheet';
+import { ScreenId, PlaceItem, type PlaceCategory } from '../types';
+import { usePlaces } from '../hooks/usePlaces';
+import { loadGoogleMaps } from '../lib/googleMaps';
+import { MapPinOverlay } from './MapPinOverlay';
+import { PlaceDetailSheet } from './PlaceDetailSheet';
 
 interface MapScreenProps {
+  destination: string;
   onNavigate: (screen: ScreenId) => void;
   selectedPlaceIds: Set<string>;
   onTogglePlace: (id: string) => void;
 }
 
+const DEFAULT_CENTER: google.maps.LatLngLiteral = { lat: 5.4141, lng: 100.3288 }; // Penang fallback
+
+// Keep pins clear of the header (top) and the docked bottom sheet.
+const MAP_PADDING: google.maps.Padding = { top: 96, right: 48, bottom: 220, left: 48 };
+
 export const MapScreen: React.FC<MapScreenProps> = ({
+  destination,
   onNavigate,
   selectedPlaceIds,
   onTogglePlace,
 }) => {
-  const [activeFilter, setActiveFilter] = useState<'all' | 'sights' | 'cafes' | 'stays'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | PlaceCategory>('all');
+  const [sheetSnap, setSheetSnap] = useState<BottomSheetSnap>('half');
+  const [activePlaceId, setActivePlaceId] = useState<string | null>(null);
+  const { places, isLoading, error } = usePlaces(destination);
 
-  const filteredPlaces = PLACES.filter((place) => {
-    if (activeFilter === 'all') return true;
-    return place.category === activeFilter;
-  });
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const overlaysRef = useRef<Map<string, MapPinOverlay>>(new Map());
+  const [mapsReady, setMapsReady] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+  const selectedPlaceIdsRef = useRef(selectedPlaceIds);
+  selectedPlaceIdsRef.current = selectedPlaceIds;
+  // Opening a place detail swaps the sheet body to the detail view and
+  // expands the sheet so it's readable. Kept in a ref so the marker overlay
+  // callbacks always invoke the latest handler.
+  const openDetail = (id: string) => {
+    setActivePlaceId(id);
+    setSheetSnap('full');
+  };
+  const openDetailRef = useRef(openDetail);
+  openDetailRef.current = openDetail;
+
+  // Surface data/loading failures as toasts instead of covering the map with
+  // an inline error panel.
+  useEffect(() => {
+    if (error) {
+      toast.error('Could not load places', {
+        description: `We couldn't find spots for ${destination}. Pull to refresh or try again.`,
+      });
+    }
+  }, [error, destination]);
+
+  useEffect(() => {
+    if (mapError) {
+      toast.error('Map failed to load', { description: mapError });
+    }
+  }, [mapError]);
+
+  // Initialize the map once, after the Maps JS API has actually loaded.
+  useEffect(() => {
+    let cancelled = false;
+
+    loadGoogleMaps()
+      .then((maps) => {
+        if (cancelled || !mapContainerRef.current || mapRef.current) return;
+        mapRef.current = new maps.Map(mapContainerRef.current, {
+          center: DEFAULT_CENTER,
+          zoom: 14,
+          disableDefaultUI: true,
+          zoomControl: true,
+          clickableIcons: false,
+          // AdvancedMarkerElement requires a Map ID. "DEMO_MAP_ID" is
+          // Google's shared vector-map ID for local development; replace it
+          // with a Map ID created in Cloud Console before shipping to
+          // production so styling/vector features are under your control.
+          mapId: import.meta.env.VITE_GOOGLE_MAPS_MAP_ID?.trim() || 'DEMO_MAP_ID',
+        });
+        setMapsReady(true);
+      })
+      .catch((caught: unknown) => {
+        if (cancelled) return;
+        setMapError(caught instanceof Error ? caught.message : 'Failed to load Google Maps');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filteredPlaces = useMemo(
+    () =>
+      places.filter((place) => {
+        if (activeFilter === 'all') return true;
+        return place.category === activeFilter;
+      }),
+    [activeFilter, places],
+  );
+
+  // Keep the pin overlays in sync with the currently visible places and
+  // selection state so the map and sheet always show the same categories.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapsReady || !map) return;
+
+    const overlays = overlaysRef.current;
+    const seenIds = new Set(filteredPlaces.map((place) => place.id));
+
+    for (const [id, overlay] of overlays) {
+      if (!seenIds.has(id)) {
+        overlay.setMap(null);
+        overlays.delete(id);
+      }
+    }
+
+    filteredPlaces.forEach((place) => {
+      const isSelected = selectedPlaceIdsRef.current.has(place.id);
+      const existing = overlays.get(place.id);
+      const options = {
+        pinIcon: place.pinIcon,
+        pinLabel: place.pinLabel,
+        isSelected,
+        zIndex: isSelected ? 25 : 15,
+        onClick: () => openDetailRef.current(place.id),
+      };
+
+      if (existing) {
+        existing.update(options);
+      } else {
+        const overlay = new MapPinOverlay({
+          position: { lat: place.lat, lng: place.lng },
+          ...options,
+        });
+        overlay.setMap(map);
+        overlays.set(place.id, overlay);
+      }
+    });
+
+    if (filteredPlaces.length > 0) {
+      const bounds = new google.maps.LatLngBounds();
+      filteredPlaces.forEach((place) => bounds.extend({ lat: place.lat, lng: place.lng }));
+      map.fitBounds(bounds, MAP_PADDING);
+    }
+  }, [mapsReady, filteredPlaces, selectedPlaceIds]);
+
+  // Clean up overlays on unmount.
+  useEffect(() => {
+    return () => {
+      overlaysRef.current.forEach((overlay) => overlay.setMap(null));
+      overlaysRef.current.clear();
+    };
+  }, []);
+
+  const recenterMap = () => {
+    const map = mapRef.current;
+    if (!map || filteredPlaces.length === 0) return;
+    const bounds = new google.maps.LatLngBounds();
+    filteredPlaces.forEach((place) => bounds.extend({ lat: place.lat, lng: place.lng }));
+    map.fitBounds(bounds, MAP_PADDING);
+  };
 
   const selectedCount = selectedPlaceIds.size;
+  const activePlace = places.find((place) => place.id === activePlaceId) ?? null;
+  const lastScrollTopRef = useRef(0);
+
+  const handleSheetScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = event.currentTarget.scrollTop;
+    if (sheetSnap !== 'full' && scrollTop > lastScrollTopRef.current) {
+      setSheetSnap('full');
+    }
+    lastScrollTopRef.current = scrollTop;
+  };
 
   return (
     <div className="relative w-full max-w-[430px] h-[100dvh] mx-auto bg-[#FBF9F4] text-[#163300] flex flex-col overflow-hidden">
@@ -32,24 +187,25 @@ export const MapScreen: React.FC<MapScreenProps> = ({
         onNavigate={onNavigate}
       />
 
-      <main className="flex-1 flex flex-col pt-14 relative overflow-y-auto no-scrollbar">
-        {/* Interactive Map Section */}
-        <div className="relative w-full h-[390px] bg-[#e4eef0] overflow-hidden">
-          {/* Map background */}
-          <div
-            className="w-full h-full bg-cover bg-center transition-transform duration-500"
-            style={{
-              backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuC0lzMQcsaeY-R2t9VSRL_uFn_R1eBOgXyY1qJ6NXv1CP0eHyJhqvh5NPmKJCvJzhgFhhSSGVGWHrc29wYdTtSFazBxRDvk74bJlGvNC0leO8yafhjcNZNyZBEGmXkx_9jYXLovf3DX0rAR7H3ItPCmD0M2-fg7UJBzGJY6X0TnYP9xHBIo6B-DAPlIwBTAQfvMJAMsGPirbp-kXq2byzJQv_Wn-YMGxsbVn8ZLxZ0hh0itTIcwQu1N')`,
-            }}
-          />
+      {/* Full-bleed map sits behind the collapsible sheet so it stays visible. */}
+      <main className="flex-1 relative pt-14 overflow-hidden">
+        <div className="absolute inset-0 top-14 bg-[#e4eef0]">
+          <div ref={mapContainerRef} className="w-full h-full" />
 
-          {/* Soft warm map overlay matching kinetic theme */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#FBF9F4]/25 via-transparent to-[#FBF9F4]/40 pointer-events-none" />
+          {isLoading && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-[#FFFFFF]/95 backdrop-blur-md px-4 py-2 shadow-md pointer-events-none">
+              <span className="h-2 w-2 rounded-full bg-[#9FE870] animate-pulse" />
+              <span className="font-label text-[12px] font-medium text-[#41493A]">
+                Finding great spots…
+              </span>
+            </div>
+          )}
 
           {/* Floating Map Controls */}
           <div className="absolute top-4 right-4 flex flex-col gap-2 z-20">
             <button
               aria-label="Recenter Map"
+              onClick={recenterMap}
               className="w-10 h-10 rounded-full bg-[#FFFFFF]/95 backdrop-blur-md shadow-md flex items-center justify-center text-[#163300] active:scale-90 transition-transform border border-black/[0.04] cursor-pointer"
             >
               <span className="material-symbols-outlined text-[20px]">near_me</span>
@@ -61,62 +217,26 @@ export const MapScreen: React.FC<MapScreenProps> = ({
               <span className="material-symbols-outlined text-[20px]">layers</span>
             </button>
           </div>
-
-          {/* Map Pins */}
-          {PLACES.map((place) => {
-            const isSelected = selectedPlaceIds.has(place.id);
-            const posStyle: React.CSSProperties = {
-              top: place.pinPosition.top,
-              left: place.pinPosition.left,
-              right: place.pinPosition.right,
-              zIndex: isSelected ? 25 : 15,
-            };
-
-            return (
-              <button
-                key={place.id}
-                onClick={() => onTogglePlace(place.id)}
-                style={posStyle}
-                className="pin-toggle absolute -translate-x-1/2 -translate-y-1/2 group active:scale-95 transition-all cursor-pointer"
-                title={`Toggle ${place.title}`}
-              >
-                {isSelected ? (
-                  <>
-                    <div className="pin-bubble flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#163300] text-[#9FE870] shadow-lg ring-2 ring-white transition-all">
-                      <span className="material-symbols-filled text-[15px]">
-                        {place.pinIcon}
-                      </span>
-                      <span className="font-label text-[12px] font-bold tracking-tight text-white whitespace-nowrap">
-                        {place.pinLabel}
-                      </span>
-                    </div>
-                    <div className="w-2 h-2 bg-[#163300] rotate-45 mx-auto -mt-1 shadow-sm" />
-                  </>
-                ) : (
-                  <>
-                    <div className="pin-bubble flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FFFFFF]/95 text-[#163300] shadow-md ring-1 ring-black/[0.06] transition-all">
-                      <span className="material-symbols-outlined text-[13px] text-[#41493A]">
-                        {place.pinIcon}
-                      </span>
-                      <span className="font-label text-[11px] font-medium whitespace-nowrap text-[#163300]">
-                        {place.pinLabel}
-                      </span>
-                    </div>
-                    <div className="w-1.5 h-1.5 bg-[#FFFFFF]/95 rotate-45 mx-auto -mt-0.5" />
-                  </>
-                )}
-              </button>
-            );
-          })}
         </div>
 
-        {/* Kinetic Bottom Sheet */}
-        <div className="relative -mt-6 z-30 flex-1 flex flex-col bg-[#FFFFFF] rounded-t-[24px] px-4 pt-3 pb-8 shadow-[0_-8px_24px_rgba(22,51,0,0.06)] border-t border-black/[0.04]">
-          {/* Subtle Drag Handle */}
-          <div className="w-10 h-1.5 bg-[#dbdad5]/80 rounded-full mx-auto mb-3.5" />
-
-          {/* Sheet Header with Filter Pills */}
-          <div className="flex items-center justify-between gap-2 mb-4">
+        {/* Draggable mobile bottom sheet: half-height by default, full screen on an upward swipe. */}
+        <BottomSheet
+          snap={sheetSnap}
+          onSnapChange={setSheetSnap}
+          label={activePlace ? 'Place details' : 'Places list'}
+        >
+          {activePlace ? (
+            <PlaceDetailSheet
+              place={activePlace}
+              isSelected={selectedPlaceIds.has(activePlace.id)}
+              onToggleSelect={() => onTogglePlace(activePlace.id)}
+              onBack={() => setActivePlaceId(null)}
+              onScroll={handleSheetScroll}
+            />
+          ) : (
+            <>
+              {/* Sheet Header with Filter Pills */}
+              <div className="flex items-center justify-between gap-2 mb-4 shrink-0">
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
               {(['all', 'sights', 'cafes', 'stays'] as const).map((filter) => {
                 const isActive = activeFilter === filter;
@@ -145,59 +265,88 @@ export const MapScreen: React.FC<MapScreenProps> = ({
             </span>
           </div>
 
-          {/* Place List Cards */}
-          <div className="flex flex-col gap-2.5" id="places-container">
-            {filteredPlaces.map((place: PlaceItem) => {
-              const isSelected = selectedPlaceIds.has(place.id);
+          {/* Place List Cards — scrolls within the sheet, clears the floating CTA */}
+          <div
+            className="flex flex-col gap-2.5 flex-1 min-h-0 overflow-y-auto no-scrollbar pb-28"
+              onScroll={handleSheetScroll}
+              id="places-container"
+          >
+            {isLoading && places.length === 0 ? (
+              <p className="font-label text-[13px] text-[#41493A] text-center py-6">
+                Finding great spots in {destination}…
+              </p>
+            ) : filteredPlaces.length === 0 ? (
+              <p className="font-label text-[13px] text-[#41493A] text-center py-6">
+                No places found for this filter.
+              </p>
+            ) : (
+              filteredPlaces.map((place: PlaceItem) => {
+                const isSelected = selectedPlaceIds.has(place.id);
 
-              return (
-                <div
-                  key={place.id}
-                  onClick={() => onTogglePlace(place.id)}
-                  className="place-card flex items-center justify-between p-2.5 rounded-2xl bg-[#F5F4EE] border border-black/[0.03] transition-all active:scale-[0.99] cursor-pointer hover:bg-[#EFEEE8]/60"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <img
-                      src={place.imageUrl}
-                      alt={place.title}
-                      className="w-14 h-14 rounded-xl object-cover shrink-0 shadow-sm"
-                    />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-headline font-bold text-[15px] text-[#163300] truncate tracking-tight">
-                        {place.title}
-                      </span>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="material-symbols-outlined text-[14px] text-[#41493A]">
-                          {place.iconName}
+                return (
+                  <div
+                    key={place.id}
+                    onClick={() => openDetail(place.id)}
+                    className="place-card flex items-center justify-between p-2.5 rounded-2xl bg-[#F5F4EE] border border-black/[0.03] transition-all active:scale-[0.99] cursor-pointer hover:bg-[#EFEEE8]/60"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {place.imageUrl ? (
+                        <img
+                          src={place.imageUrl}
+                          alt={place.title}
+                          className="w-14 h-14 rounded-xl object-cover shrink-0 shadow-sm"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 rounded-xl bg-[#E9E8E3] shrink-0 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-[22px] text-[#41493A]">
+                            {place.iconName}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-headline font-bold text-[15px] text-[#163300] truncate tracking-tight">
+                          {place.title}
                         </span>
-                        <span className="font-body text-[12px] text-[#41493A] font-medium truncate">
-                          {place.subtitle}
-                        </span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="material-symbols-outlined text-[14px] text-[#41493A]">
+                            {place.iconName}
+                          </span>
+                          <span className="font-body text-[12px] text-[#41493A] font-medium truncate">
+                            {place.subtitle}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <button
-                    aria-label={`Select ${place.title}`}
-                    className={`selection-control w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ml-2 transition-all active:scale-90 cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#9FE870] text-[#163300]'
-                        : 'bg-[#E9E8E3] text-[#E4E2DD]'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[20px] font-black">
-                      check
-                    </span>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+                    <button
+                      aria-label={isSelected ? `Remove ${place.title}` : `Select ${place.title}`}
+                      aria-pressed={isSelected}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onTogglePlace(place.id);
+                      }}
+                      className={`selection-control w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ml-2 transition-all active:scale-90 cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#9FE870] text-[#163300]'
+                          : 'bg-[#E9E8E3] text-[#E4E2DD]'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[20px] font-black">
+                        check
+                      </span>
+                    </button>
+                  </div>
+                );
+              })
+            )}
+              </div>
+            </>
+          )}
+        </BottomSheet>
       </main>
 
       {/* Prominent Kinetic Floating CTA */}
-      <div className="absolute bottom-0 inset-x-0 px-4 pb-6 pt-4 bg-gradient-to-t from-[#FFFFFF] via-[#FFFFFF] to-transparent z-40 pointer-events-none">
+      <div className="safe-bottom-padding absolute bottom-0 inset-x-0 px-4 pt-4 bg-gradient-to-t from-[#FFFFFF] via-[#FFFFFF] to-transparent z-40 pointer-events-none">
         <button
           id="cta-button"
           disabled={selectedCount === 0}

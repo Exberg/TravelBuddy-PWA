@@ -29,6 +29,19 @@
   scrollbar-width: none;
 }
 
+.bottom-sheet {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.bottom-sheet .overflow-y-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+.safe-bottom-padding {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+}
+
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }

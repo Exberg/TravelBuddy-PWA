@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState } from 'react';
+import { Toaster } from 'sonner';
 import { ScreenId } from './types';
 import { WhereToScreen } from './components/WhereToScreen';
 import { WhenScreen } from './components/WhenScreen';
@@ -15,8 +16,10 @@ const ChatScreen = lazy(async () => {
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('where');
   const [selectedDestination, setSelectedDestination] = useState('Penang');
+  // Place IDs now come from live Google Places results, so there's no
+  // static mock set to pre-select on load.
   const [selectedPlaceIds, setSelectedPlaceIds] = useState<Set<string>>(
-    new Set(['place-1', 'place-2', 'place-3'])
+    new Set()
   );
 
   const handleTogglePlace = (id: string) => {
@@ -51,6 +54,7 @@ export default function App() {
         return (
           <MapScreen
             onNavigate={setCurrentScreen}
+            destination={selectedDestination}
             selectedPlaceIds={selectedPlaceIds}
             onTogglePlace={handleTogglePlace}
           />
@@ -87,6 +91,14 @@ export default function App() {
       <QuickNavigator
         currentScreen={currentScreen}
         onNavigate={setCurrentScreen}
+      />
+      <Toaster
+        position="top-center"
+        richColors
+        closeButton
+        toastOptions={{
+          className: 'font-label',
+        }}
       />
     </div>
   );

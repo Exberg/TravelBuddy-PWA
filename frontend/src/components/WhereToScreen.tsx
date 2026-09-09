@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { DESTINATIONS } from '../data/mockData';
+import React, { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { ScreenHeader } from './ScreenHeader';
 import { ScreenId } from '../types';
+import { usePlaceAutocomplete } from '../hooks/usePlaceAutocomplete';
 
 interface WhereToScreenProps {
   onNavigate: (screen: ScreenId) => void;
@@ -11,22 +12,44 @@ interface WhereToScreenProps {
 
 export const WhereToScreen: React.FC<WhereToScreenProps> = ({
   onNavigate,
-  selectedDestination,
   onSelectDestination,
 }) => {
   const [searchQuery, setSearchQuery] = useState('Penang, Malaysia');
+  const [isResolving, setIsResolving] = useState(false);
+  const { suggestions, isLoading: isSearching, error } = usePlaceAutocomplete(searchQuery);
 
-  const filteredDestinations = DESTINATIONS.filter((d) =>
-    d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.country.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.location.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Live Places Autocomplete only kicks in once the user has typed enough to
+  // form a meaningful query; below that we show a lightweight search prompt
+  // instead of any canned/mock destination list.
+  const showLiveSuggestions = searchQuery.trim().length >= 2;
 
-  const displayList = filteredDestinations.length > 0 ? filteredDestinations : DESTINATIONS;
+  // Surface autocomplete failures (rate limits, network errors) as a toast
+  // rather than silently showing nothing.
+  useEffect(() => {
+    if (error) {
+      toast.error('Could not search destinations', {
+        description: 'Check your connection and try again.',
+      });
+    }
+  }, [error]);
 
-  const handleSelect = (destName: string, location: string) => {
-    onSelectDestination(destName);
-    setSearchQuery(location);
+  const handleSelectSuggestion = async (suggestion: (typeof suggestions)[number]) => {
+    setIsResolving(true);
+    try {
+      const place = await suggestion.toPlace();
+      onSelectDestination(place.name);
+      setSearchQuery(place.location);
+    } catch {
+      // Fall back to the prediction text if fetchFields fails (e.g. rate
+      // limited); the user can still continue with a reasonable name.
+      onSelectDestination(suggestion.mainText);
+      setSearchQuery(`${suggestion.mainText}, ${suggestion.secondaryText}`.replace(/, $/, ''));
+      toast.warning('Using approximate location', {
+        description: "We couldn't load full details for that place, but you can keep going.",
+      });
+    } finally {
+      setIsResolving(false);
+    }
   };
 
   return (
@@ -78,47 +101,60 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({
           </div>
 
           {/* Suggested Minimal Cards */}
-          <div className="flex flex-col gap-3">
-            {displayList.map((dest) => {
-              const isSelected = selectedDestination.toLowerCase() === dest.name.toLowerCase();
-
-              return (
-                <button
-                  key={dest.id}
-                  onClick={() => handleSelect(dest.name, dest.location)}
-                  className={`destination-option flex items-center justify-between p-3.5 pr-4 rounded-[16px] bg-[#FFFFFF] shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer text-left ${
-                    isSelected
-                      ? 'border-2 border-[#163300]'
-                      : 'border border-[#E9E8E3] hover:border-[#C1CAB5]'
-                  }`}
-                  data-active={isSelected ? 'true' : 'false'}
-                >
-                  <div className="flex items-center gap-3.5">
-                    <img
-                      src={dest.imageUrl}
-                      alt={dest.name}
-                      className="w-14 h-14 rounded-xl object-cover shrink-0"
-                    />
-                    <span className="font-headline font-bold text-[17px] text-[#163300]">
-                      {dest.name}
-                    </span>
-                  </div>
-
-                  <div
-                    className={`status-indicator w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-                      isSelected
-                        ? 'bg-[#9FE870] text-[#163300] font-bold'
-                        : 'bg-[#EFEEE8] text-transparent'
-                    }`}
+          {showLiveSuggestions ? (
+            <div className="flex flex-col gap-3">
+              {isSearching && suggestions.length === 0 ? (
+                <p className="font-label text-[13px] text-[#41493A] text-center py-4">
+                  Searching…
+                </p>
+              ) : suggestions.length === 0 ? (
+                <p className="font-label text-[13px] text-[#41493A] text-center py-4">
+                  No destinations found.
+                </p>
+              ) : (
+                suggestions.map((suggestion) => (
+                  <button
+                    key={suggestion.placeId}
+                    onClick={() => void handleSelectSuggestion(suggestion)}
+                    disabled={isResolving}
+                    className="destination-option flex items-center justify-between p-3.5 pr-4 rounded-[16px] bg-[#FFFFFF] shadow-sm border border-[#E9E8E3] hover:border-[#C1CAB5] transition-all duration-200 active:scale-[0.98] cursor-pointer text-left disabled:opacity-60"
                   >
-                    <span className="material-symbols-outlined text-[18px] font-bold leading-none">
-                      check
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-11 h-11 rounded-xl bg-[#F5F4EE] shrink-0 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-[20px] text-[#41493A]">
+                          location_on
+                        </span>
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-headline font-bold text-[16px] text-[#163300] truncate">
+                          {suggestion.mainText}
+                        </span>
+                        {suggestion.secondaryText && (
+                          <span className="font-body text-[13px] text-[#41493A] truncate">
+                            {suggestion.secondaryText}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 rounded-[16px] border border-dashed border-[#E9E8E3] bg-[#FFFFFF]/60 px-6 py-10 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F5F4EE]">
+                <span className="material-symbols-outlined text-[24px] text-[#41493A]">
+                  travel_explore
+                </span>
+              </div>
+              <p className="font-headline text-[15px] font-bold text-[#163300]">
+                Search for a destination
+              </p>
+              <p className="font-body text-[13px] text-[#41493A]">
+                Start typing a city or region to see live suggestions.
+              </p>
+            </div>
+          )}
         </div>
       </main>
 

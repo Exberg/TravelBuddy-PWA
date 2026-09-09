@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { toast } from 'sonner';
 import { type EveAuthorizationData, useEveError } from '@assistant-ui/eve';
 import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown';
 import {
@@ -11,6 +12,7 @@ import {
 } from '@assistant-ui/react';
 import remarkGfm from 'remark-gfm';
 import { ScreenHeader } from './ScreenHeader';
+import { BottomSheet, type BottomSheetSnap } from './BottomSheet';
 import { EveAssistantProvider } from './EveAssistantProvider';
 import { type ScreenId, type TimelineItem } from '../types';
 import { SCHEDULE_DAYS } from '../data/mockData';
@@ -232,19 +234,21 @@ function AssistantMessage() {
 
 function ChatError() {
   const error = useEveError();
-  if (!error) return null;
 
-  return (
-    <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-      TravelBuddy could not reach the agent. Check the Eve server and try again.
-      <span className="sr-only"> {error.message}</span>
-    </div>
-  );
+  useEffect(() => {
+    if (!error) return;
+    toast.error('TravelBuddy could not reach the agent', {
+      description: 'Check the Eve server and try again.',
+    });
+  }, [error]);
+
+  return null;
 }
 
 function ChatContent({ onNavigate }: Omit<ChatScreenProps, 'destination'>) {
   const [activeDay, setActiveDay] = useState<'1' | '2' | '3'>('1');
   const [isItineraryCollapsed, setIsItineraryCollapsed] = useState(false);
+  const [sheetSnap, setSheetSnap] = useState<BottomSheetSnap>('half');
   const [scheduleData] =
     useState<Record<string, TimelineItem[]>>(SCHEDULE_DAYS);
   const currentTimeline = scheduleData[activeDay] ?? [];
@@ -260,8 +264,8 @@ function ChatContent({ onNavigate }: Omit<ChatScreenProps, 'destination'>) {
           onNavigate={onNavigate}
         />
 
-        <ThreadPrimitive.Root className="flex min-h-0 flex-1 flex-col pt-16">
-          <ThreadPrimitive.Viewport className="no-scrollbar flex-1 space-y-5 overflow-y-auto px-4 pb-6">
+        <ThreadPrimitive.Root className="flex min-h-0 flex-1 flex-col pt-14">
+          <ThreadPrimitive.Viewport className="no-scrollbar flex-1 space-y-5 overflow-y-auto px-4 pb-40 pt-2">
             <div className="flex items-center justify-center pb-4 pt-1">
               <div className="inline-flex items-center gap-2 rounded-full border border-[#9FE870]/30 bg-[#eaf9dc] px-3.5 py-1.5 text-[#163300] shadow-xs">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-[#9FE870]" />
@@ -308,125 +312,127 @@ function ChatContent({ onNavigate }: Omit<ChatScreenProps, 'destination'>) {
               ))}
             </div>
           </ThreadPrimitive.Viewport>
+        </ThreadPrimitive.Root>
 
-          <div className="w-full shrink-0 bg-gradient-to-t from-[#FBF9F4] via-[#FBF9F4]/95 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
-            <div className="mb-3 w-full rounded-3xl border border-[#E5E5E5] bg-white p-4 shadow-[0_8px_30px_rgba(22,51,0,0.06)] transition-all duration-300">
-              <div className="flex w-full flex-col items-center">
-                <div className="mb-3 h-1 w-10 rounded-full bg-[#E4E2DD]" />
+        <BottomSheet
+          snap={sheetSnap}
+          onSnapChange={setSheetSnap}
+          label="Trip itinerary"
+        >
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex items-center justify-between gap-2 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="font-headline text-lg font-bold tracking-tight text-[#163300]">
+                  Penang Flow
+                </span>
+                <span className="rounded-full bg-[#eaf9dc] px-2.5 py-0.5 font-label text-xs font-semibold text-[#163300]">
+                  3 Days
+                </span>
               </div>
-
-              <div className="flex items-center justify-between px-1 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="font-headline text-lg font-bold tracking-tight text-[#163300]">
-                    Penang Flow
-                  </span>
-                  <span className="rounded-full bg-[#eaf9dc] px-2.5 py-0.5 font-label text-xs font-semibold text-[#163300]">
-                    3 Days
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  aria-label="Toggle itinerary expansion"
-                  aria-expanded={!isItineraryCollapsed}
-                  onClick={() => setIsItineraryCollapsed((value) => !value)}
-                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-[#E5E5E5] bg-[#F5F4EE] text-[#163300] transition-transform active:scale-95"
-                >
-                  <span
-                    className={`material-symbols-outlined text-[20px] transition-transform duration-200 ${
-                      isItineraryCollapsed ? 'rotate-180' : 'rotate-0'
-                    }`}
-                  >
-                    expand_less
-                  </span>
-                </button>
-              </div>
-
-              <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-3.5">
-                {(['1', '2', '3'] as const).map((day) => (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => setActiveDay(day)}
-                    className={`shrink-0 cursor-pointer rounded-full px-4 py-1.5 font-label text-xs font-semibold tracking-wide transition-colors ${
-                      activeDay === day
-                        ? 'bg-[#163300] text-white shadow-xs'
-                        : 'border border-[#E5E5E5] bg-[#F5F4EE] text-[#41493A] hover:text-[#163300]'
-                    }`}
-                  >
-                    Day {day}
-                  </button>
-                ))}
-              </div>
-
-              {!isItineraryCollapsed ? (
-                <div className="flex flex-col space-y-2">
-                  {currentTimeline.map((item) => (
-                    <div
-                      key={`${item.time}-${item.title}`}
-                      className="flex items-center justify-between rounded-2xl border border-[#E5E5E5]/70 bg-[#F5F4EE] p-3"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="w-11 shrink-0 font-label text-xs font-bold tabular-nums text-[#41493A]">
-                          {item.time}
-                        </span>
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9FE870]" />
-                        <div className="flex min-w-0 flex-col">
-                          <span className="truncate font-headline text-sm font-bold text-[#163300]">
-                            {item.title}
-                          </span>
-                          <span className="truncate font-body text-xs text-[#41493A]">
-                            {item.desc}
-                          </span>
-                        </div>
-                      </div>
-                      <span className="material-symbols-outlined shrink-0 text-[19px] text-[#41493A]">
-                        {item.icon}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-
-            <ComposerPrimitive.Root className="flex w-full items-center gap-2 rounded-full border border-[#E5E5E5] bg-white p-2 shadow-[0_4px_24px_rgba(22,51,0,0.06)]">
               <button
                 type="button"
-                disabled
-                title="Attachments are not enabled yet"
-                aria-label="Attachments are not enabled yet"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#41493A] opacity-40"
+                aria-label="Toggle itinerary expansion"
+                aria-expanded={!isItineraryCollapsed}
+                onClick={() => setIsItineraryCollapsed((value) => !value)}
+                className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[#E5E5E5] bg-[#F5F4EE] text-[#163300] transition-transform active:scale-95"
               >
-                <span className="material-symbols-outlined text-[20px]">add</span>
+                <span
+                  className={`material-symbols-outlined text-[20px] transition-transform duration-200 ${
+                    isItineraryCollapsed ? 'rotate-180' : 'rotate-0'
+                  }`}
+                >
+                  expand_less
+                </span>
               </button>
+            </div>
 
-              <ComposerPrimitive.Input
-                rows={1}
-                submitMode="enter"
-                placeholder="Ask to adjust stops, times, or vibe..."
-                className="max-h-24 min-h-6 min-w-0 flex-1 resize-none bg-transparent px-1 py-0.5 font-body text-sm text-[#163300] outline-none placeholder:text-[#41493A]/60"
-              />
+            <div className="no-scrollbar flex shrink-0 items-center gap-2 overflow-x-auto pb-3.5">
+              {(['1', '2', '3'] as const).map((day) => (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => setActiveDay(day)}
+                  className={`shrink-0 cursor-pointer rounded-full px-4 py-1.5 font-label text-xs font-semibold tracking-wide transition-colors ${
+                    activeDay === day
+                      ? 'bg-[#163300] text-white shadow-xs'
+                      : 'border border-[#E5E5E5] bg-[#F5F4EE] text-[#41493A] hover:text-[#163300]'
+                  }`}
+                >
+                  Day {day}
+                </button>
+              ))}
+            </div>
 
-              <AuiIf condition={(state) => state.thread.isRunning}>
-                <ComposerPrimitive.Cancel
-                  aria-label="Stop response"
-                  className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#163300] text-white transition-transform active:scale-90"
-                >
-                  <span className="material-symbols-outlined text-[18px]">stop</span>
-                </ComposerPrimitive.Cancel>
-              </AuiIf>
-              <AuiIf condition={(state) => !state.thread.isRunning}>
-                <ComposerPrimitive.Send
-                  aria-label="Send message"
-                  className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#9FE870] text-[#163300] shadow-xs transition-all hover:brightness-105 active:scale-90 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <span className="material-symbols-outlined text-[19px] font-bold">
-                    arrow_upward
-                  </span>
-                </ComposerPrimitive.Send>
-              </AuiIf>
-            </ComposerPrimitive.Root>
+            {!isItineraryCollapsed ? (
+              <div className="no-scrollbar flex min-h-0 flex-1 flex-col space-y-2 overflow-y-auto pb-28">
+                {currentTimeline.map((item) => (
+                  <div
+                    key={`${item.time}-${item.title}`}
+                    className="flex items-center justify-between rounded-2xl border border-[#E5E5E5]/70 bg-[#F5F4EE] p-3"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="w-11 shrink-0 font-label text-xs font-bold tabular-nums text-[#41493A]">
+                        {item.time}
+                      </span>
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9FE870]" />
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate font-headline text-sm font-bold text-[#163300]">
+                          {item.title}
+                        </span>
+                        <span className="truncate font-body text-xs text-[#41493A]">
+                          {item.desc}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="material-symbols-outlined shrink-0 text-[19px] text-[#41493A]">
+                      {item.icon}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
-        </ThreadPrimitive.Root>
+        </BottomSheet>
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-16">
+          <ComposerPrimitive.Root className="pointer-events-auto mx-auto flex w-full items-center gap-2 rounded-full border border-[#E5E5E5] bg-white/95 p-2 shadow-[0_8px_30px_rgba(22,51,0,0.16)] backdrop-blur-md">
+            <button
+              type="button"
+              disabled
+              title="Attachments are not enabled yet"
+              aria-label="Attachments are not enabled yet"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#41493A] opacity-40"
+            >
+              <span className="material-symbols-outlined text-[20px]">add</span>
+            </button>
+
+            <ComposerPrimitive.Input
+              rows={1}
+              submitMode="enter"
+              placeholder="Ask TravelBuddy..."
+              className="max-h-24 min-h-6 min-w-0 flex-1 resize-none bg-transparent px-1 py-0.5 font-body text-sm text-[#163300] outline-none placeholder:text-[#41493A]/60"
+            />
+
+            <AuiIf condition={(state) => state.thread.isRunning}>
+              <ComposerPrimitive.Cancel
+                aria-label="Stop response"
+                className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#163300] text-white transition-transform active:scale-90"
+              >
+                <span className="material-symbols-outlined text-[18px]">stop</span>
+              </ComposerPrimitive.Cancel>
+            </AuiIf>
+            <AuiIf condition={(state) => !state.thread.isRunning}>
+              <ComposerPrimitive.Send
+                aria-label="Send message"
+                className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#9FE870] text-[#163300] shadow-xs transition-all hover:brightness-105 active:scale-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[19px] font-bold">
+                  arrow_upward
+                </span>
+              </ComposerPrimitive.Send>
+            </AuiIf>
+          </ComposerPrimitive.Root>
+        </div>
       </div>
     </>
   );
