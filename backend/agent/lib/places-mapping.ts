@@ -126,7 +126,9 @@ function resolveIcon(category: PlaceCategory, types: string[] | undefined): stri
 
 function resolveSubtitle(place: GooglePlace, rating: number): string {
   const area = place.shortFormattedAddress ?? place.formattedAddress ?? "";
-  const ratingText = rating > 0 ? rating.toFixed(1) : "New";
+  const ratingText = rating > 0 ? rating.toFixed(1) : "";
+  if (!area && !ratingText) return "Details on tap";
+  if (!ratingText) return area;
   return area ? `${area} • ${ratingText}` : ratingText;
 }
 

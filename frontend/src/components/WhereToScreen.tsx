@@ -13,7 +13,10 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({ onNavigate }) => {
   const setDestination = useTripStore((state) => state.setDestination);
   const savedDescription = useTripStore((state) => state.destinationDescription);
   const [searchQuery, setSearchQuery] = useState(
-    () => savedDescription ?? 'Penang, Malaysia',
+    () => savedDescription ?? '',
+  );
+  const [selectedDestination, setSelectedDestination] = useState(
+    () => Boolean(savedDescription?.trim()),
   );
   const [isResolving, setIsResolving] = useState(false);
   const { suggestions, isLoading: isSearching, error } = usePlaceAutocomplete(searchQuery);
@@ -41,6 +44,7 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({ onNavigate }) => {
       // agent plans against; the short name stays for UI headings.
       setDestination(place.name, place.location);
       setSearchQuery(place.location);
+      setSelectedDestination(true);
     } catch {
       // Fall back to the prediction text if fetchFields fails (e.g. rate
       // limited); the user can still continue with a reasonable name.
@@ -50,6 +54,7 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({ onNavigate }) => {
       );
       setDestination(suggestion.mainText, description);
       setSearchQuery(description);
+      setSelectedDestination(true);
       toast.warning('Using approximate location', {
         description: "We couldn't load full details for that place, but you can keep going.",
       });
@@ -91,7 +96,16 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({ onNavigate }) => {
               id="destination-input"
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                // A typed query is only a search, not a destination choice.
+                // Invalidate the previous choice so Continue cannot carry a
+                // stale destination into the next onboarding step.
+                if (selectedDestination) {
+                  setDestination('', null);
+                  setSelectedDestination(false);
+                }
+              }}
               placeholder="Search destination"
               className="w-full h-14 pl-12 pr-12 bg-[#F5F4EE] border border-transparent focus:border-[#717A68]/30 text-[#163300] font-headline font-semibold text-base rounded-[16px] focus:outline-none focus:bg-[#EFEEE8] transition-all shadow-sm"
             />
@@ -99,7 +113,11 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({ onNavigate }) => {
               <button
                 id="clear-btn"
                 aria-label="Clear destination"
-                onClick={() => setSearchQuery('')}
+                onClick={() => {
+                  setSearchQuery('');
+                  setDestination('', null);
+                  setSelectedDestination(false);
+                }}
                 className="absolute inset-y-0 right-0 pr-4 flex items-center text-[#163300]/40 hover:text-[#163300] transition-colors cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[20px]">cancel</span>
@@ -141,6 +159,9 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({ onNavigate }) => {
                             {suggestion.secondaryText}
                           </span>
                         )}
+                        <span className="font-label text-[11px] text-[#717A68]">
+                          {suggestion.isCountry ? 'Country' : 'City or region'}
+                        </span>
                       </div>
                     </div>
                   </button>
@@ -158,7 +179,7 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({ onNavigate }) => {
                 Search for a destination
               </p>
               <p className="font-body text-[13px] text-[#41493A]">
-                Start typing a city or region to see live suggestions.
+                Start typing a country, city, or region to see live suggestions.
               </p>
             </div>
           )}
@@ -170,7 +191,8 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({ onNavigate }) => {
         <button
           id="btn-where-continue"
           onClick={() => onNavigate('when')}
-          className="w-full h-14 rounded-[16px] bg-[#9FE870] hover:bg-[#92d866] text-[#163300] font-headline text-[17px] font-bold tracking-tight flex items-center justify-center shadow-md active:scale-[0.98] transition-all duration-150 cursor-pointer"
+          disabled={!selectedDestination || isResolving}
+          className="w-full h-14 rounded-[16px] bg-[#9FE870] hover:bg-[#92d866] text-[#163300] font-headline text-[17px] font-bold tracking-tight flex items-center justify-center shadow-md active:scale-[0.98] transition-all duration-150 cursor-pointer disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-[#9FE870]"
           type="button"
         >
           Continue

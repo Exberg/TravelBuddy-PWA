@@ -211,7 +211,7 @@ function AssistantMessage() {
         </AuiIf>
       </div>
 
-      <div className="space-y-3 rounded-3xl rounded-tl-md border border-[#E5E5E5] bg-white p-5 text-[15px] leading-relaxed text-[#163300] shadow-sm">
+      <div className="space-y-3 text-[15px] leading-relaxed text-[#163300]">
         <MessagePrimitive.GroupedParts
           groupBy={groupChatParts}
           indicator="no-text"
@@ -344,7 +344,7 @@ function ChatContent({
         <ScreenHeader
           title="AI Chat"
           currentScreen="chat"
-          onBack={() => onNavigate('map')}
+          onBack={() => onNavigate('home')}
           onNavigate={onNavigate}
         />
 
@@ -511,12 +511,12 @@ function ChatContent({
               <ComposerPrimitive.Root className="pointer-events-auto mx-auto flex w-full items-center gap-2 rounded-full border border-[#E5E5E5] bg-white/95 p-2 shadow-[0_8px_30px_rgba(22,51,0,0.16)] backdrop-blur-md">
                 <button
                   type="button"
-                  disabled
-                  title="Attachments are not enabled yet"
-                  aria-label="Attachments are not enabled yet"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#41493A] opacity-40"
+                  title="Trip settings"
+                  aria-label="Open trip settings"
+                  onClick={() => onNavigate('trip-settings')}
+                  className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#41493A] transition-colors hover:bg-[#F5F4EE] hover:text-[#163300] active:scale-90"
                 >
-                  <span className="material-symbols-outlined text-[20px]">add</span>
+                  <span className="material-symbols-outlined text-[20px]">settings</span>
                 </button>
 
                 <ComposerPrimitive.Input
@@ -643,18 +643,20 @@ function ChatContent({
 }
 
 export function ChatScreen({ onNavigate }: ChatScreenProps) {
+  const tripId = useTripStore((state) => state.tripId);
+  const destination = useTripStore((state) => state.destination);
   const [history, setHistory] = useState<LocalChatHistory | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    const trip = useTripStore.getState();
-    void loadChatHistory(trip.tripId, trip.destination).then((loaded) => {
+    setHistory(null);
+    void loadChatHistory(tripId, destination).then((loaded) => {
       if (!cancelled) setHistory(loaded);
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [tripId, destination]);
 
   const updateChat = useCallback(
     (chatId: string, update: Partial<LocalChat>) => {

@@ -102,6 +102,7 @@ const FALLBACK_TRIP_IMAGES = [
 ];
 
 type TripCardItem = {
+  tripId: string;
   title: string;
   time: string;
   duration: string;
@@ -123,6 +124,7 @@ const toTripCardItem = (trip: TripRecord, index: number): TripCardItem => {
   ) ?? 0;
   const dayCount = trip.itinerary?.days.length;
   return {
+    tripId: trip.tripId,
     title: trip.itinerary?.title ?? `${trip.destination} trip`,
     time: formatTripDate(trip.startDate, trip.updatedAt ?? 'Planned'),
     duration: dayCount ? `${dayCount} Days Trip` : `${trip.durationLabel} Trip`,
@@ -135,9 +137,20 @@ const toTripCardItem = (trip: TripRecord, index: number): TripCardItem => {
   };
 };
 
-function TripCard({ item }: { item: TripCardItem }) {
+function TripCard({
+  item,
+  onOpen,
+}: {
+  item: TripCardItem;
+  onOpen: (tripId: string) => void;
+}) {
   return (
-    <article className="flex w-full items-center gap-4 rounded-[26px] border border-[#e4e2dd] bg-white p-4 shadow-sm transition hover:border-[#9fe870]">
+    <button
+      type="button"
+      onClick={() => onOpen(item.tripId)}
+      aria-label={`Continue ${item.title} chat`}
+      className="flex w-full cursor-pointer items-center gap-4 rounded-[26px] border border-[#e4e2dd] bg-white p-4 text-left shadow-sm transition hover:border-[#9fe870] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#163300] active:scale-[0.99]"
+    >
       <div className="h-[110px] w-[110px] shrink-0 overflow-hidden rounded-[18px] bg-[#f5f4ee]"><img alt={item.title} className="h-full w-full object-cover" src={item.image} /></div>
       <div className="flex h-[110px] min-w-0 flex-1 flex-col justify-between py-0.5">
         <div className="flex items-center justify-between gap-2"><h3 className="truncate text-[17px] font-bold tracking-tight text-[#163300]">{item.title}</h3><span className="tnum shrink-0 rounded-full bg-[#f5f4ee] px-2.5 py-1 text-[11px] font-semibold text-[#6B6F66]">{item.time}</span></div>
@@ -146,14 +159,19 @@ function TripCard({ item }: { item: TripCardItem }) {
           {item.stats.map(([value, label], index) => <div className="flex items-center gap-1" key={`${value}-${label}`}><span className={`h-2 w-2 rounded-full ${index === 0 ? 'bg-[#FF5A5F]' : index === 1 ? 'bg-[#FF9F1C]' : 'bg-[#3A86FF]'}`} /><span className="tnum">{value}</span>{label ? <span className="font-medium text-[#6B6F66]">{label}</span> : null}</div>)}
         </div>
       </div>
-    </article>
+    </button>
   );
 }
 
 export function HomeScreen({ onNavigate }: HomeScreenProps) {
   const tripState = useTripStore();
   const startNewTrip = useTripStore((state) => state.startNewTrip);
+  const selectTrip = useTripStore((state) => state.selectTrip);
   const [tripItems, setTripItems] = useState<TripCardItem[]>([]);
+
+  const openTripChat = async (tripId: string) => {
+    if (await selectTrip(tripId)) onNavigate('chat');
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -185,7 +203,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
         <div className="grid w-full grid-cols-3 gap-3"><MacroCard value="RM 1.8k" label="Budget saved" color="#FF6B55" track="#ffe9e4" offset={35} icon={<WalletIcon className="h-3.5 w-3.5 text-[#FF6B55]" />} /><MacroCard value="14" label="Places pinned" color="#FF9F1C" track="#fff2dd" offset={45} icon={<PinIcon className="h-3.5 w-3.5 text-[#FF9F1C]" />} /><MacroCard value="96%" label="Friends going" color="#2E86DE" track="#e5f1fd" offset={15} icon={<CheckIcon className="h-3.5 w-3.5 text-[#2E86DE]" />} /></div>
 
         <div className="pb-1 pt-2"><h2 className="text-[26px] font-extrabold tracking-tight text-[#163300]">Recent Trips</h2></div>
-        <div className="flex flex-col gap-3.5">{tripItems.map((item) => <TripCard item={item} key={item.title} />)}</div>
+        <div className="flex flex-col gap-3.5">{tripItems.map((item) => <TripCard item={item} onOpen={(tripId) => void openTripChat(tripId)} key={item.tripId} />)}</div>
       </main>
 
       <div className="pointer-events-none fixed bottom-0 left-0 right-0 z-50 flex justify-center"><div className="pointer-events-auto relative w-full max-w-md"><button aria-label="Log food" onClick={() => {

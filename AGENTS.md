@@ -9,6 +9,7 @@
 ## Frontend
 
 - Build the mobile app with React Vite PWA, using `@assistant-ui/eve` for the chat UI.
+- Use `DESIGN.md` as your main reference for designs
 
 ## Backend
 

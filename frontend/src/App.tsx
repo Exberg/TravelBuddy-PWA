@@ -6,15 +6,20 @@ import { WhereToScreen } from './components/WhereToScreen';
 import { WhenScreen } from './components/WhenScreen';
 import { BudgetScreen } from './components/BudgetScreen';
 import { WhoScreen } from './components/WhoScreen';
-import { MapScreen } from './components/MapScreen';
 import { HomeScreen } from './components/HomeScreen';
 import { QuickNavigator } from './components/QuickNavigator';
 import { GroupsSettingsScreen } from './components/GroupsSettingsScreen';
+import { TripSettingsScreen } from './components/TripSettingsScreen';
 import { useTripStore } from './store/tripStore';
 
 const ChatScreen = lazy(async () => {
   const module = await import('./components/ChatScreen');
   return { default: module.ChatScreen };
+});
+
+const MapScreen = lazy(async () => {
+  const module = await import('./components/MapScreen');
+  return { default: module.MapScreen };
 });
 
 const SCREEN_ROUTES: Record<ScreenId, string> = {
@@ -27,6 +32,7 @@ const SCREEN_ROUTES: Record<ScreenId, string> = {
   chat: '/chat',
   groups: '/groups',
   settings: '/settings',
+  'trip-settings': '/trip-settings',
 };
 
 interface ScreenViewProps {
@@ -56,7 +62,17 @@ function ScreenView({ screen }: ScreenViewProps) {
       content = <WhoScreen onNavigate={onNavigate} />;
       break;
     case 'map':
-      content = <MapScreen onNavigate={onNavigate} />;
+      content = (
+        <Suspense
+          fallback={
+            <div className="flex h-[100dvh] w-full max-w-[430px] items-center justify-center bg-[#FBF9F4] font-label text-sm text-[#41493A]">
+              Preparing your map…
+            </div>
+          }
+        >
+          <MapScreen onNavigate={onNavigate} />
+        </Suspense>
+      );
       break;
     case 'chat':
       content = (
@@ -77,12 +93,15 @@ function ScreenView({ screen }: ScreenViewProps) {
     case 'settings':
       content = <GroupsSettingsScreen screen="settings" onNavigate={onNavigate} />;
       break;
+    case 'trip-settings':
+      content = <TripSettingsScreen onNavigate={onNavigate} />;
+      break;
   }
 
   return (
     <>
       {content}
-      {screen !== 'home' && screen !== 'groups' && screen !== 'settings' ? (
+      {screen !== 'home' && screen !== 'groups' && screen !== 'settings' && screen !== 'trip-settings' ? (
         <QuickNavigator currentScreen={screen} onNavigate={onNavigate} />
       ) : null}
     </>
@@ -120,6 +139,7 @@ export default function App() {
           <Route path="/chat" element={<ScreenView screen="chat" />} />
           <Route path="/groups" element={<ScreenView screen="groups" />} />
           <Route path="/settings" element={<ScreenView screen="settings" />} />
+          <Route path="/trip-settings" element={<ScreenView screen="trip-settings" />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <Toaster

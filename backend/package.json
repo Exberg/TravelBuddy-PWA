@@ -23,7 +23,9 @@
     "@ai-sdk/openai-compatible": "^3.0.44",
     "@vercel/connect": "1.0.0",
     "ai": "^7.0.82",
+    "cheerio": "^1.0.0",
     "eve": "^0.52.2",
+    "robots-parser": "^3.0.1",
     "zod": "4.5.4"
   },
   "devDependencies": {

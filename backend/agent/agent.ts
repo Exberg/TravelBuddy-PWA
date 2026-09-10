@@ -35,6 +35,8 @@ const qwenModelOptions: AgentModelOptionsDefinition = {
 };
 
 export default defineAgent({
+  defaultTools: false,
+  reasoning: "low",
   model: defineDynamic({
     events: {
       "step.started": (_event, ctx) => {
@@ -47,11 +49,6 @@ export default defineAgent({
           return {
             model: google("gemini-3.8-flash"),
             modelContextWindowTokens: 1_048_576,
-            // Gemini 3.8 defaults to medium thinking. The failed local trace
-            // spent most of its 838 output tokens outside the short visible
-            // answer, then the provider terminated mid-sentence with OTHER.
-            // Low is the model's minimum supported level and is a better fit
-            // for latency-sensitive mobile travel chat.
             modelOptions: geminiModelOptions,
           };
         }
@@ -59,11 +56,6 @@ export default defineAgent({
         return {
           model: modelscope("Qwen-Ambassador/Qwen3.8-Max"),
           modelContextWindowTokens: 262_144,
-          // Qwen3.8-Max defaults to xhigh reasoning. That work is streamed as
-          // internal Eve reasoning (and intentionally hidden from travelers),
-          // which made the app appear idle for roughly 45-50 seconds before
-          // the first visible answer. Low keeps reasoning enabled for tool use
-          // while substantially reducing that startup delay.
           modelOptions: qwenModelOptions,
         };
       },

@@ -75,7 +75,7 @@ describe("mapTextSearchResponse", () => {
 
     expect(place.rating).toBe(0);
     expect(place.photoName).toBeNull();
-    expect(place.subtitle).toBe("Some Street • New");
+    expect(place.subtitle).toBe("Some Street");
     expect(place.iconName).toBe("local_cafe");
   });
 

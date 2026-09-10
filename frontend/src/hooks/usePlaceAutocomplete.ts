@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { loadGoogleMaps } from '../lib/googleMaps';
+import { loadGooglePlaces } from '../lib/googleMaps';
 
 export interface DestinationSuggestion {
   placeId: string;
   mainText: string;
   secondaryText: string;
+  /** Country predictions are shown before cities and regions. */
+  isCountry: boolean;
   /** Resolves full place details (name + lat/lng) only when the user picks this suggestion. */
   toPlace: () => Promise<{ name: string; location: string; lat: number; lng: number }>;
 }
@@ -38,11 +40,10 @@ export function usePlaceAutocomplete(query: string) {
     setError(null);
 
     const timer = setTimeout(() => {
-      loadGoogleMaps()
-        .then(() => google.maps.importLibrary('places'))
+      loadGooglePlaces()
         .then(async (library) => {
           if (cancelled) return;
-          const placesLibrary = library as google.maps.PlacesLibrary;
+          const placesLibrary = library;
 
           if (!sessionTokenRef.current) {
             sessionTokenRef.current = new placesLibrary.AutocompleteSessionToken();
@@ -51,37 +52,52 @@ export function usePlaceAutocomplete(query: string) {
           const { suggestions: results } =
             await placesLibrary.AutocompleteSuggestion.fetchAutocompleteSuggestions({
               input: trimmed,
-              includedPrimaryTypes: ['locality', 'administrative_area_level_3'],
+              // Keep country destinations available alongside cities so a
+              // traveler can choose Iceland or Japan directly, then narrow
+              // the same search to a city when that is more useful.
+              includedPrimaryTypes: [
+                'country',
+                'locality',
+                'administrative_area_level_1',
+                'administrative_area_level_3',
+              ],
               sessionToken: sessionTokenRef.current,
             });
 
           if (cancelled) return;
 
-          setSuggestions(
-            results
-              .filter((suggestion) => suggestion.placePrediction !== null)
-              .map((suggestion) => {
-                const prediction = suggestion.placePrediction!;
-                return {
-                  placeId: prediction.placeId,
-                  mainText: prediction.mainText?.text ?? prediction.text.text,
-                  secondaryText: prediction.secondaryText?.text ?? '',
-                  toPlace: async () => {
-                    const place = prediction.toPlace();
-                    await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'location'] });
-                    // A session concludes once fetchFields is called; start a fresh
-                    // token for the next search session.
-                    sessionTokenRef.current = null;
-                    return {
-                      name: place.displayName ?? prediction.mainText?.text ?? trimmed,
-                      location: place.formattedAddress ?? prediction.text.text,
-                      lat: place.location?.lat() ?? 0,
-                      lng: place.location?.lng() ?? 0,
-                    };
-                  },
-                };
-              }),
-          );
+          const mappedSuggestions = results
+            .filter((suggestion) => suggestion.placePrediction !== null)
+            .map((suggestion) => {
+              const prediction = suggestion.placePrediction!;
+              const predictionTypes =
+                (prediction as unknown as { types?: string[] }).types ?? [];
+
+              return {
+                placeId: prediction.placeId,
+                mainText: prediction.mainText?.text ?? prediction.text.text,
+                secondaryText: prediction.secondaryText?.text ?? '',
+                isCountry: predictionTypes.includes('country'),
+                toPlace: async () => {
+                  const place = prediction.toPlace();
+                  await place.fetchFields({
+                    fields: ['displayName', 'formattedAddress', 'location'],
+                  });
+                  // A session concludes once fetchFields is called; start a fresh
+                  // token for the next search session.
+                  sessionTokenRef.current = null;
+                  return {
+                    name: place.displayName ?? prediction.mainText?.text ?? trimmed,
+                    location: place.formattedAddress ?? prediction.text.text,
+                    lat: place.location?.lat() ?? 0,
+                    lng: place.location?.lng() ?? 0,
+                  };
+                },
+              };
+            })
+            .sort((left, right) => Number(right.isCountry) - Number(left.isCountry));
+
+          setSuggestions(mappedSuggestions);
           setIsLoading(false);
         })
         .catch((caught: unknown) => {

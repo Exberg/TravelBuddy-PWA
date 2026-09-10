@@ -2,7 +2,26 @@ import { useEffect, useState } from 'react';
 import { fetchPlaces } from '../lib/places';
 import type { PlaceCategory, PlaceItem } from '../types';
 
-const CATEGORIES: readonly PlaceCategory[] = ['sights', 'cafes', 'stays'];
+const CATEGORIES: readonly PlaceCategory[] = ['sights', 'cafes'];
+type PlaceFilter = 'all' | PlaceCategory;
+
+// Keep successful searches for the lifetime of the app. Revisiting the map or
+// toggling a category then reuses the same request instead of billing Google
+// Places again. Failed requests are evicted so a retry can recover.
+const searchCache = new Map<string, Promise<PlaceItem[]>>();
+
+function fetchPlacesCached(destination: string, category: PlaceCategory) {
+  const key = `${destination.trim().toLocaleLowerCase()}::${category}`;
+  const cached = searchCache.get(key);
+  if (cached) return cached;
+
+  const request = fetchPlaces(destination, category).catch((error) => {
+    searchCache.delete(key);
+    throw error;
+  });
+  searchCache.set(key, request);
+  return request;
+}
 
 export interface UsePlacesResult {
   places: PlaceItem[];
@@ -11,9 +30,8 @@ export interface UsePlacesResult {
 }
 
 /**
- * Merges sights/cafes/stays results for a destination into one deduped,
- * stably-ordered place list (sights, then cafes, then stays; each category
- * in the order returned by the API).
+ * Merges category results for a destination into one deduped, stably-ordered
+ * place list, preserving the order of the category arrays and API results.
  */
 export function mergePlaceResults(results: PlaceItem[][]): PlaceItem[] {
   const seen = new Set<string>();
@@ -30,27 +48,53 @@ export function mergePlaceResults(results: PlaceItem[][]): PlaceItem[] {
   return merged;
 }
 
-export function usePlaces(destination: string): UsePlacesResult {
-  const [places, setPlaces] = useState<PlaceItem[]>([]);
+export function usePlaces(destination: string, filter: PlaceFilter): UsePlacesResult {
+  const [result, setResult] = useState<{
+    destination: string;
+    byCategory: Partial<Record<PlaceCategory, PlaceItem[]>>;
+  }>({ destination, byCategory: {} });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    setError(null);
+
     if (!destination) {
-      setPlaces([]);
       setIsLoading(false);
-      setError(null);
       return;
     }
 
     let cancelled = false;
     setIsLoading(true);
-    setError(null);
 
-    Promise.all(CATEGORIES.map((category) => fetchPlaces(destination, category)))
+    // Load one category by default. The other paid Text Search calls happen
+    // only if the traveler asks for that filter (or explicitly chooses All).
+    const requestedCategories = filter === 'all' ? CATEGORIES : [filter];
+    const existing = result.destination === destination ? result.byCategory : {};
+    const missingCategories = requestedCategories.filter(
+      (category) => existing[category] === undefined,
+    );
+
+    if (missingCategories.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
+    Promise.all(
+      missingCategories.map(async (category) => ({
+        category,
+        places: await fetchPlacesCached(destination, category),
+      })),
+    )
       .then((results) => {
         if (cancelled) return;
-        setPlaces(mergePlaceResults(results));
+        setResult((current) => {
+          const byCategory = current.destination === destination
+            ? { ...current.byCategory }
+            : {};
+          for (const entry of results) byCategory[entry.category] = entry.places;
+          return { destination, byCategory };
+        });
         setIsLoading(false);
       })
       .catch((caught: unknown) => {
@@ -62,7 +106,13 @@ export function usePlaces(destination: string): UsePlacesResult {
     return () => {
       cancelled = true;
     };
-  }, [destination]);
+  }, [destination, filter]);
+
+  const byCategory = result.destination === destination ? result.byCategory : {};
+  const visibleCategories = filter === 'all' ? CATEGORIES : [filter];
+  const places = mergePlaceResults(
+    visibleCategories.map((category) => byCategory[category] ?? []),
+  );
 
   return { places, isLoading, error };
 }

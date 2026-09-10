@@ -10,9 +10,11 @@ export interface LocalChat {
   title: string;
   createdAt: string;
   updatedAt: string;
-  /** In-memory UI projection; Eve remains the durable event-log owner. */
+  /** Cached UI projection; Eve remains the durable event-log owner. */
   events: readonly MessageStreamEvent[];
   session?: ClientSessionState;
+  /** True only while a durable turn may still be running. */
+  resumeOnMount: boolean;
 }
 
 export interface LocalChatHistory {
@@ -43,6 +45,7 @@ export function createLocalChat(tripId: string, destination: string): LocalChat 
     createdAt: now,
     updatedAt: now,
     events: [],
+    resumeOnMount: false,
   };
 }
 
@@ -88,6 +91,10 @@ function parseHistory(value: string | null): LocalChatHistory | null {
         updatedAt: typeof chat.updatedAt === 'string' ? chat.updatedAt : now,
         events: chat.events,
         ...(isSession(chat.session) ? { session: chat.session } : {}),
+        resumeOnMount:
+          typeof chat.resumeOnMount === 'boolean'
+            ? chat.resumeOnMount
+            : isSession(chat.session) && chat.events.length === 0,
       } satisfies LocalChat];
     });
     if (chats.length === 0) return null;
@@ -138,12 +145,9 @@ export class LocalConversationRepository implements ConversationRepository {
 
       let activeChat = migrated.find((chat) => chat.tripId === tripId);
       if (!activeChat) {
-        const legacyChat = migrated.find(
-          (chat) => chat.tripId === `legacy-${chat.id}`,
-        );
-        activeChat = legacyChat
-          ? { ...legacyChat, tripId }
-          : createLocalChat(tripId, destination);
+        // Unscoped v2 chats are preserved under a legacy id, but must never be
+        // adopted by a new trip: doing so replays the previous trip's thread.
+        activeChat = createLocalChat(tripId, destination);
         migrated.unshift(activeChat);
         changed = true;
       }
@@ -186,6 +190,7 @@ export class LocalConversationRepository implements ConversationRepository {
             updatedAt: now,
             events: hasEvents ? legacy.events! : [],
             ...(hasSession ? { session: legacy.session } : {}),
+            resumeOnMount: hasSession && !hasEvents,
           });
         }
       }
@@ -205,17 +210,9 @@ export class LocalConversationRepository implements ConversationRepository {
         activeChatId: history.activeChatId,
         chats: history.chats.map((chat) => ({
           ...chat,
-          // Only save the durable Eve handle. Replaying from zero rebuilds the
-          // UI projection without maintaining a second event-log database.
-          events: [],
-          ...(chat.session
-            ? {
-                session: {
-                  sessionId: chat.session.sessionId,
-                  streamIndex: 0,
-                },
-              }
-            : {}),
+          // Cache the last completed projection so opening a saved trip is a
+          // read-only restore. Eve remains the durable source of truth.
+          events: chat.events,
         })),
       };
       window.localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(stored));

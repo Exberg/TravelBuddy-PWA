@@ -7,7 +7,8 @@ export type ScreenId =
   | 'map'
   | 'chat'
   | 'groups'
-  | 'settings';
+  | 'settings'
+  | 'trip-settings';
 
 export interface Destination {
   id: string;

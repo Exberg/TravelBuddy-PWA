@@ -1,7 +1,11 @@
 import { useRef, type ReactNode } from 'react';
 import { useEveAgentRuntime } from '@assistant-ui/eve';
 import { AssistantRuntimeProvider } from '@assistant-ui/react';
-import type { ClientSessionState, MessageStreamEvent } from 'eve/client';
+import {
+  Client,
+  type ClientSessionState,
+  type MessageStreamEvent,
+} from 'eve/client';
 import { parseSaveItineraryResult } from '../lib/itinerary';
 import {
   selectTripPreferences,
@@ -53,26 +57,32 @@ export function EveAssistantProvider({
     ...(configuredHost ? { host: configuredHost } : {}),
     initialEvents: chat.events,
     initialSession: chat.session,
-    resume: chat.session !== undefined,
-    prepareSend: (input) => ({
-      ...input,
-      clientContext: (() => {
-        const tripState = useTripStore.getState();
-        return {
-          surface: 'TravelBuddy PWA',
-          travelBuddy: {
-            model: tripState.model,
-            itinerarySnapshot: toItinerarySnapshot(tripState),
-            // Everything the onboarding screens collected. The agent treats the
-            // destination, dates, budget, party size and must-visit places as
-            // hard constraints on any itinerary it builds.
-            //
-            trip: toTripContext(selectTripPreferences(tripState)),
-            today: new Date().toISOString().slice(0, 10),
-          },
-        };
-      })(),
-    }),
+    resume: chat.session !== undefined && chat.resumeOnMount,
+    prepareSend: (input) => {
+      onChatChange(chat.id, {
+        resumeOnMount: true,
+        updatedAt: new Date().toISOString(),
+      });
+      return {
+        ...input,
+        clientContext: (() => {
+          const tripState = useTripStore.getState();
+          return {
+            surface: 'TravelBuddy PWA',
+            travelBuddy: {
+              model: tripState.model,
+              itinerarySnapshot: toItinerarySnapshot(tripState),
+              // Everything the onboarding screens collected. The agent treats the
+              // destination, dates, budget, party size and must-visit places as
+              // hard constraints on any itinerary it builds.
+              //
+              trip: toTripContext(selectTripPreferences(tripState)),
+              today: new Date().toISOString().slice(0, 10),
+            },
+          };
+        })(),
+      };
+    },
     onEvent: (event) => {
       eventsRef.current = [...eventsRef.current, event];
 
@@ -98,8 +108,27 @@ export function EveAssistantProvider({
       onChatChange(chat.id, {
         events: snapshot.events,
         session: snapshot.session,
+        resumeOnMount: false,
         updatedAt: new Date().toISOString(),
       });
+    },
+    onError: () => {
+      onChatChange(chat.id, {
+        events: eventsRef.current,
+        resumeOnMount: false,
+        updatedAt: new Date().toISOString(),
+      });
+
+      const session = sessionRef.current;
+      if (!session) return;
+      const client = new Client({ host: configuredHost ?? '' });
+      void client.sessions
+        .attach(session.sessionId, { streamIndex: session.streamIndex })
+        .cancel({ tasks: true })
+        .catch(() => {
+          // The original error remains the useful UI signal. Cancellation is
+          // best-effort when the server itself is unreachable.
+        });
     },
   });
 

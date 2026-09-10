@@ -1,7 +1,62 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScreenHeader } from './ScreenHeader';
 import { ScreenId } from '../types';
 import { useTripStore } from '../store/tripStore';
+
+const COUNTRY_CURRENCIES: Record<string, string> = {
+  australia: 'AUD',
+  bolivia: 'BOB',
+  cambodia: 'KHR',
+  china: 'CNY',
+  france: 'EUR',
+  germany: 'EUR',
+  india: 'INR',
+  indonesia: 'IDR',
+  italy: 'EUR',
+  japan: 'JPY',
+  malaysia: 'MYR',
+  'new zealand': 'NZD',
+  philippines: 'PHP',
+  singapore: 'SGD',
+  'south korea': 'KRW',
+  spain: 'EUR',
+  taiwan: 'TWD',
+  thailand: 'THB',
+  vietnam: 'VND',
+  'united arab emirates': 'AED',
+  'united kingdom': 'GBP',
+  'united states': 'USD',
+};
+
+function normalizeCountry(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getDestinationCountry(destination: string): string | null {
+  const parts = destination
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  for (const part of [...parts].reverse()) {
+    const normalizedPart = normalizeCountry(part);
+    const country = Object.keys(COUNTRY_CURRENCIES).find(
+      (name) =>
+        normalizedPart === name ||
+        normalizedPart.endsWith(` ${name}`) ||
+        normalizedPart.startsWith(`${name} `),
+    );
+    if (country) return country;
+  }
+
+  return null;
+}
 
 interface BudgetScreenProps {
   onNavigate: (screen: ScreenId) => void;
@@ -12,12 +67,77 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigate }) => {
   // budget ceiling, so there is no separate "confirm" step to lose it at.
   const budget = useTripStore((state) => state.budgetMyr);
   const setBudget = useTripStore((state) => state.setBudgetMyr);
+  const destination = useTripStore((state) => state.destination);
+  const destinationDescription = useTripStore(
+    (state) => state.destinationDescription,
+  );
+  const [conversionRate, setConversionRate] = useState<number | null>(null);
+  const [conversionError, setConversionError] = useState(false);
+
+  const destinationCountry = getDestinationCountry(
+    destinationDescription ?? destination,
+  );
+  const destinationCountryLabel = destinationCountry
+    ? destinationCountry.replace(/\b\w/g, (letter) => letter.toUpperCase())
+    : null;
+  const destinationCurrency = destinationCountry
+    ? COUNTRY_CURRENCIES[destinationCountry]
+    : null;
+
+  useEffect(() => {
+    setConversionRate(null);
+    setConversionError(false);
+
+    if (!destinationCurrency) return;
+    if (destinationCurrency === 'MYR') {
+      setConversionRate(1);
+      return;
+    }
+
+    let stale = false;
+    const url = new URL(
+      `https://api.frankfurter.dev/v2/rate/MYR/${destinationCurrency}`,
+    );
+
+    fetch(url)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Frankfurter returned ${response.status}`);
+        return (await response.json()) as {
+          rate?: number;
+        };
+      })
+      .then((data) => {
+        if (stale) return;
+
+        if (typeof data.rate === 'number' && Number.isFinite(data.rate)) {
+          setConversionRate(data.rate);
+        } else {
+          setConversionError(true);
+        }
+      })
+      .catch(() => {
+        if (!stale) setConversionError(true);
+      });
+
+    return () => {
+      stale = true;
+    };
+  }, [destinationCurrency]);
 
   const presetAmounts = [2500, 4500, 8000];
 
   const formatNumber = (num: number) => {
     return num.toLocaleString('en-US');
   };
+
+  const convertedBudget =
+    conversionRate !== null && destinationCurrency
+      ? new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: destinationCurrency,
+          maximumFractionDigits: 0,
+        }).format(Math.round(budget * conversionRate))
+      : null;
 
   return (
     <div className="relative w-full max-w-[430px] h-[100dvh] mx-auto bg-[#FBF9F4] text-[#163300] flex flex-col overflow-hidden">
@@ -66,6 +186,15 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigate }) => {
                   {formatNumber(budget)}
                 </span>
               </div>
+              {destinationCountryLabel && destinationCurrency !== 'MYR' && (
+                <span className="font-body text-xs text-[#C5EBA3] mt-3">
+                  {convertedBudget
+                    ? `≈ ${convertedBudget} in ${destinationCountryLabel}`
+                    : conversionError
+                      ? `${destinationCountryLabel} uses ${destinationCurrency}; live conversion unavailable`
+                      : null}
+                </span>
+              )}
             </div>
           </div>
 

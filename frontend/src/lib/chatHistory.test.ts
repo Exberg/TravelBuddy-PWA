@@ -28,6 +28,7 @@ describe('LocalConversationRepository', () => {
     expect(history.chats).toHaveLength(1);
     expect(history.chats[0]?.tripId).toBe('trip-1');
     expect(history.chats[0]?.events).toEqual([]);
+    expect(history.chats[0]?.resumeOnMount).toBe(false);
   });
 
   test('migrates v2 chats without copying their itinerary snapshot', async () => {
@@ -57,7 +58,34 @@ describe('LocalConversationRepository', () => {
 
     expect(history.chats[0]?.session?.sessionId).toBe('wrun_123');
     expect(migrated).not.toContain('"itinerary"');
-    expect(JSON.parse(migrated ?? '{}').chats[0].events).toEqual([]);
-    expect(JSON.parse(migrated ?? '{}').chats[0].session.streamIndex).toBe(0);
+    expect(JSON.parse(migrated ?? '{}').chats[0].events).toHaveLength(1);
+    expect(JSON.parse(migrated ?? '{}').chats[0].session.streamIndex).toBe(4);
+  });
+
+  test('restores completed chat events without resuming the turn', async () => {
+    storage.setItem(
+      'travelbuddy:eve-chats:v3',
+      JSON.stringify({
+        version: 3,
+        activeChatId: 'chat-1',
+        chats: [
+          {
+            id: 'chat-1',
+            tripId: 'trip-1',
+            title: 'Penang trip',
+            createdAt: '2026-09-09T10:00:00.000Z',
+            updatedAt: '2026-09-09T11:00:00.000Z',
+            events: [{ type: 'turn.completed', data: { turnId: 'turn-1', sequence: 1 } }],
+            session: { sessionId: 'wrun_123', streamIndex: 4 },
+            resumeOnMount: false,
+          },
+        ],
+      }),
+    );
+
+    const history = await new LocalConversationRepository().load('trip-1', 'Penang');
+
+    expect(history.chats[0]?.events).toHaveLength(1);
+    expect(history.chats[0]?.resumeOnMount).toBe(false);
   });
 });

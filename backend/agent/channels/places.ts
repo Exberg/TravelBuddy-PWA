@@ -27,7 +27,6 @@ const FIELD_MASK = [
   "places.formattedAddress",
   "places.shortFormattedAddress",
   "places.location",
-  "places.rating",
   "places.photos",
   "places.types",
 ].join(",");
@@ -101,7 +100,7 @@ export default defineChannel({
             "X-Goog-Api-Key": apiKey,
             "X-Goog-FieldMask": FIELD_MASK,
           },
-          body: JSON.stringify({ textQuery }),
+          body: JSON.stringify({ textQuery, maxResultCount: 8 }),
         });
       } catch {
         return Response.json(
@@ -120,7 +119,16 @@ export default defineChannel({
       const body = (await upstream.json()) as GoogleTextSearchResponse;
       const places = mapTextSearchResponse(body, category);
 
-      return Response.json({ places });
+      return Response.json(
+        { places },
+        {
+          headers: {
+            // Destination/category URLs are stable enough to reuse. This also
+            // lets browsers avoid another paid upstream search on a revisit.
+            "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
+          },
+        },
+      );
     }),
 
     GET("/places/details/:placeId", async (_request, { params }) => {

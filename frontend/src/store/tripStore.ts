@@ -78,8 +78,10 @@ interface TripState extends TripPreferences, ItinerarySlice {
   setBudgetMyr: (budgetMyr: number) => void;
   setTravelers: (travelers: number) => void;
   toggleMustVisitPlace: (place: PlaceItem) => void;
+  removeMustVisitPlace: (placeId: string) => void;
   setModel: (model: TravelBuddyModel) => void;
   hydrateFromRepository: () => Promise<void>;
+  selectTrip: (tripId: string) => Promise<boolean>;
   startNewTrip: () => void;
 
   publishItinerary: (
@@ -118,6 +120,25 @@ function tripRecordFromState(state: TripState): TripRecord {
   };
 }
 
+function tripRecordToState(record: TripRecord) {
+  return {
+    tripId: record.tripId,
+    createdAt: record.createdAt,
+    destination: record.destination,
+    destinationDescription: record.destinationDescription,
+    startDate: record.startDate,
+    endDate: record.endDate,
+    durationLabel: record.durationLabel,
+    budgetMyr: record.budgetMyr,
+    travelers: record.travelers,
+    mustVisitPlaces: record.mustVisitPlaces,
+    itinerary: record.itinerary,
+    revision: record.revision,
+    updatedAt: record.updatedAt,
+    lastChangeNote: record.lastChangeNote,
+  };
+}
+
 export function selectTripRecord(state: TripState): TripRecord {
   return tripRecordFromState(state);
 }
@@ -144,7 +165,9 @@ export function isMeaningfulTrip(state: TripState) {
 }
 
 const DEFAULT_PREFERENCES: TripPreferences = {
-  destination: 'Penang',
+  // A new trip starts blank; destinations must come from the traveler rather
+  // than from the previous demo/default destination.
+  destination: '',
   destinationDescription: null,
   startDate: null,
   endDate: null,
@@ -202,6 +225,13 @@ export const useTripStore = create<TripState>()(
           };
         }),
 
+      removeMustVisitPlace: (placeId) =>
+        set((state) => ({
+          mustVisitPlaces: state.mustVisitPlaces.filter(
+            (place) => place.id !== placeId,
+          ),
+        })),
+
       setModel: (model) => set({ model }),
 
       hydrateFromRepository: async () => {
@@ -209,20 +239,7 @@ export const useTripStore = create<TripState>()(
         const saved = await tripRepository.get(current.tripId);
         if (saved) {
           set({
-            tripId: saved.tripId,
-            createdAt: saved.createdAt,
-            destination: saved.destination,
-            destinationDescription: saved.destinationDescription,
-            startDate: saved.startDate,
-            endDate: saved.endDate,
-            durationLabel: saved.durationLabel,
-            budgetMyr: saved.budgetMyr,
-            travelers: saved.travelers,
-            mustVisitPlaces: saved.mustVisitPlaces,
-            itinerary: saved.itinerary,
-            revision: saved.revision,
-            updatedAt: saved.updatedAt,
-            lastChangeNote: saved.lastChangeNote,
+            ...tripRecordToState(saved),
             storageHydrated: true,
           });
           return;
@@ -234,6 +251,17 @@ export const useTripStore = create<TripState>()(
           await tripRepository.upsert(tripRecordFromState(current));
         }
         set({ storageHydrated: true });
+      },
+
+      selectTrip: async (tripId) => {
+        const saved = await tripRepository.get(tripId);
+        if (!saved) return false;
+
+        set({
+          ...tripRecordToState(saved),
+          storageHydrated: true,
+        });
+        return true;
       },
 
       startNewTrip: () =>

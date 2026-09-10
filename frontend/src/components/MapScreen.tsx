@@ -13,7 +13,7 @@ interface MapScreenProps {
   onNavigate: (screen: ScreenId) => void;
 }
 
-const DEFAULT_CENTER: google.maps.LatLngLiteral = { lat: 5.4141, lng: 100.3288 }; // Penang fallback
+const DEFAULT_CENTER: google.maps.LatLngLiteral = { lat: 0, lng: 0 }; // Neutral world view until places load
 
 // Keep pins clear of the header (top) and the docked bottom sheet.
 const MAP_PADDING: google.maps.Padding = { top: 96, right: 48, bottom: 220, left: 48 };
@@ -30,16 +30,19 @@ export const MapScreen: React.FC<MapScreenProps> = ({ onNavigate }) => {
     [mustVisitPlaces],
   );
 
-  const [activeFilter, setActiveFilter] = useState<'all' | PlaceCategory>('all');
+  // Start with one useful category instead of issuing both paid Places
+  // searches before the traveler has expressed interest in cafes or All.
+  const [activeFilter, setActiveFilter] = useState<'all' | PlaceCategory>('sights');
   const [sheetSnap, setSheetSnap] = useState<BottomSheetSnap>('half');
   const [activePlaceId, setActivePlaceId] = useState<string | null>(null);
-  const { places, isLoading, error } = usePlaces(destination);
+  const { places, isLoading, error } = usePlaces(destination, activeFilter);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const overlaysRef = useRef<Map<string, MapPinOverlay>>(new Map());
   const [mapsReady, setMapsReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [shouldLoadMap, setShouldLoadMap] = useState(false);
   const selectedPlaceIdsRef = useRef(selectedPlaceIds);
   selectedPlaceIdsRef.current = selectedPlaceIds;
   // Opening a place detail swaps the sheet body to the detail view and
@@ -68,23 +71,33 @@ export const MapScreen: React.FC<MapScreenProps> = ({ onNavigate }) => {
     }
   }, [mapError]);
 
+  // Avoid a billable dynamic-map load when place discovery fails or the user
+  // leaves this screen before results arrive.
+  useEffect(() => {
+    if (places.length > 0) setShouldLoadMap(true);
+  }, [places.length]);
+
   // Initialize the map once, after the Maps JS API has actually loaded.
   useEffect(() => {
+    if (!shouldLoadMap) return;
     let cancelled = false;
+    const container = mapContainerRef.current;
 
     loadGoogleMaps()
       .then((maps) => {
-        if (cancelled || !mapContainerRef.current || mapRef.current) return;
-        mapRef.current = new maps.Map(mapContainerRef.current, {
+        if (cancelled || !container || mapRef.current) return;
+        mapRef.current = new maps.Map(container, {
           center: DEFAULT_CENTER,
           zoom: 14,
           disableDefaultUI: true,
           zoomControl: true,
           clickableIcons: false,
+          // Raster rendering does not create a WebGL context, avoiding GPU /
+          // hardware-acceleration warnings on lower-powered mobile devices.
+          renderingType: maps.RenderingType.RASTER,
           // AdvancedMarkerElement requires a Map ID. "DEMO_MAP_ID" is
-          // Google's shared vector-map ID for local development; replace it
-          // with a Map ID created in Cloud Console before shipping to
-          // production so styling/vector features are under your control.
+          // Google's shared development ID; use a raster-configured Map ID
+          // from the same Cloud project in production.
           mapId: import.meta.env.VITE_GOOGLE_MAPS_MAP_ID?.trim() || 'DEMO_MAP_ID',
         });
         setMapsReady(true);
@@ -96,8 +109,14 @@ export const MapScreen: React.FC<MapScreenProps> = ({ onNavigate }) => {
 
     return () => {
       cancelled = true;
+      const map = mapRef.current;
+      if (map) {
+        google.maps.event.clearInstanceListeners(map);
+        mapRef.current = null;
+        container?.replaceChildren();
+      }
     };
-  }, []);
+  }, [shouldLoadMap]);
 
   const filteredPlaces = useMemo(
     () =>
@@ -242,7 +261,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ onNavigate }) => {
               {/* Sheet Header with Filter Pills */}
               <div className="flex items-center justify-between gap-2 mb-4 shrink-0">
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              {(['all', 'sights', 'cafes', 'stays'] as const).map((filter) => {
+              {(['all', 'sights', 'cafes'] as const).map((filter) => {
                 const isActive = activeFilter === filter;
                 return (
                   <button
@@ -298,6 +317,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({ onNavigate }) => {
                         <img
                           src={place.imageUrl}
                           alt={place.title}
+                          loading="lazy"
+                          decoding="async"
                           className="w-14 h-14 rounded-xl object-cover shrink-0 shadow-sm"
                         />
                       ) : (
