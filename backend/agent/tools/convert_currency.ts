@@ -1,7 +1,6 @@
 import { defineTool } from "eve/tools";
 import { z } from "zod";
-import { fixedRate } from "../lib/currency";
-import { resolveTravelBuddyContext } from "../model-selection";
+import { currencyRateState, rateFromQuote } from "../lib/currency";
 
 const currencyCodeSchema = z
   .string()
@@ -16,8 +15,8 @@ const successSchema = z.object({
   amount: z.number(),
   rate: z.number(),
   convertedAmount: z.number(),
-  date: z.literal("fixed-planning-rate"),
-  source: z.literal("TravelBuddy fixed planning rate"),
+  date: z.literal("onboarding-recorded-rate"),
+  source: z.literal("TravelBuddy onboarding rate"),
 });
 
 const errorSchema = z.object({
@@ -42,36 +41,33 @@ function roundCurrency(value: number): number {
 
 export default defineTool({
   description:
-    "Convert an amount using TravelBuddy's fixed planning rate. Use this for explicit currency conversions, such as converting a MYR budget to JPY. Do not present the result as a live market rate.",
+    "Convert an amount using the exchange rate already recorded during TravelBuddy onboarding. This tool never fetches a live market rate.",
   inputSchema: z.object({
     from: currencyCodeSchema,
     to: currencyCodeSchema,
     amount: z.number().finite().nonnegative(),
   }),
   outputSchema: resultSchema,
-  async execute({ from, to, amount }, ctx) {
-    const context = resolveTravelBuddyContext(ctx.messages);
-    const trip = context?.trip;
-    const configuredFrom = typeof trip === "object" && trip !== null &&
-      typeof (trip as { budgetCurrency?: unknown }).budgetCurrency === "string"
-      ? (trip as { budgetCurrency: string }).budgetCurrency.toUpperCase()
-      : undefined;
-    const configuredTo = typeof trip === "object" && trip !== null &&
-      typeof (trip as { destinationCurrency?: unknown }).destinationCurrency === "string"
-      ? (trip as { destinationCurrency: string }).destinationCurrency.toUpperCase()
-      : undefined;
-    const configuredRate = typeof trip === "object" && trip !== null &&
-      typeof (trip as { fixedConversionRate?: unknown }).fixedConversionRate === "number"
-      ? (trip as { fixedConversionRate: number }).fixedConversionRate
-      : null;
+  execute({ from, to, amount }) {
     const normalizedFrom = from.toUpperCase();
     const normalizedTo = to.toUpperCase();
-    const rate = configuredFrom === normalizedFrom && configuredTo === normalizedTo && configuredRate !== null
-      ? configuredRate
-      : fixedRate(normalizedFrom, normalizedTo);
+    const rate = rateFromQuote(
+      currencyRateState.get().quote,
+      normalizedFrom,
+      normalizedTo,
+    );
     if (rate === null) {
-      return { success: false as const, from: normalizedFrom, to: normalizedTo, amount,
-        error: { code: "unsupported_currency", message: "No fixed planning rate is configured for that currency pair." } };
+      return {
+        success: false as const,
+        from: normalizedFrom,
+        to: normalizedTo,
+        amount,
+        error: {
+          code: "unrecorded_currency_pair",
+          message:
+            "No onboarding exchange rate was recorded for that currency pair.",
+        },
+      };
     }
     return {
       success: true as const,
@@ -80,8 +76,8 @@ export default defineTool({
       amount,
       rate,
       convertedAmount: roundCurrency(amount * rate),
-      date: "fixed-planning-rate" as const,
-      source: "TravelBuddy fixed planning rate" as const,
+      date: "onboarding-recorded-rate" as const,
+      source: "TravelBuddy onboarding rate" as const,
     };
   },
 });

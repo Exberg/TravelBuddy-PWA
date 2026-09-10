@@ -35,6 +35,8 @@ export interface TripPreferences {
   budgetMyr: number;
   budgetCurrency: string;
   destinationCurrency: string | null;
+  /** Captured once when onboarding resolves the destination currency. */
+  fixedConversionRate: number | null;
   travelers: number;
   mustVisitPlaces: MustVisitPlace[];
 }
@@ -119,6 +121,7 @@ function tripRecordFromState(state: TripState): TripRecord {
     budgetMyr: state.budgetMyr,
     budgetCurrency: state.budgetCurrency,
     destinationCurrency: state.destinationCurrency,
+    fixedConversionRate: state.fixedConversionRate,
     travelers: state.travelers,
     mustVisitPlaces: state.mustVisitPlaces,
     itinerary: state.itinerary,
@@ -130,6 +133,19 @@ function tripRecordFromState(state: TripState): TripRecord {
 }
 
 function tripRecordToState(record: TripRecord, travelPreferences: string) {
+  const budgetCurrency = record.budgetCurrency ?? 'MYR';
+  const destinationCurrency =
+    record.destinationCurrency ??
+    getDestinationCurrency(record.destinationDescription ?? record.destination);
+  const fixedConversionRate =
+    typeof record.fixedConversionRate === 'number' &&
+    Number.isFinite(record.fixedConversionRate) &&
+    record.fixedConversionRate > 0
+      ? record.fixedConversionRate
+      : destinationCurrency
+        ? getFixedRate(budgetCurrency, destinationCurrency)
+        : null;
+
   return {
     tripId: record.tripId,
     createdAt: record.createdAt,
@@ -142,10 +158,9 @@ function tripRecordToState(record: TripRecord, travelPreferences: string) {
     endDate: record.endDate,
     durationLabel: record.durationLabel,
     budgetMyr: record.budgetMyr,
-    budgetCurrency: record.budgetCurrency ?? 'MYR',
-    destinationCurrency:
-      record.destinationCurrency ??
-      getDestinationCurrency(record.destinationDescription ?? record.destination),
+    budgetCurrency,
+    destinationCurrency,
+    fixedConversionRate,
     travelers: record.travelers,
     mustVisitPlaces: record.mustVisitPlaces,
     itinerary: record.itinerary,
@@ -192,6 +207,7 @@ const DEFAULT_PREFERENCES: TripPreferences = {
   budgetMyr: 4500,
   budgetCurrency: 'MYR',
   destinationCurrency: null,
+  fixedConversionRate: null,
   travelers: 1,
   mustVisitPlaces: [],
 };
@@ -211,10 +227,16 @@ export const useTripStore = create<TripState>()(
 
       setDestination: (destination, description = null) => {
         const resolvedDestination = description ?? destination;
-        set({
-          destination,
-          destinationDescription: description,
-          destinationCurrency: getDestinationCurrency(resolvedDestination),
+        set((state) => {
+          const destinationCurrency = getDestinationCurrency(resolvedDestination);
+          return {
+            destination,
+            destinationDescription: description,
+            destinationCurrency,
+            fixedConversionRate: destinationCurrency
+              ? getFixedRate(state.budgetCurrency, destinationCurrency)
+              : null,
+          };
         });
       },
 
@@ -397,8 +419,8 @@ export function toTripContext(preferences: TripPreferences): TripContext {
     budgetMyr: preferences.budgetMyr,
     budgetCurrency: preferences.budgetCurrency,
     destinationCurrency: preferences.destinationCurrency,
-    ...(preferences.destinationCurrency
-      ? { fixedConversionRate: getFixedRate(preferences.budgetCurrency, preferences.destinationCurrency) }
+    ...(preferences.destinationCurrency && preferences.fixedConversionRate
+      ? { fixedConversionRate: preferences.fixedConversionRate }
       : {}),
     travelers: preferences.travelers,
     ...(preferences.startDate ? { startDate: preferences.startDate } : {}),
@@ -434,6 +456,7 @@ export function selectTripPreferences(state: TripState): TripPreferences {
     budgetMyr: state.budgetMyr,
     budgetCurrency: state.budgetCurrency,
     destinationCurrency: state.destinationCurrency,
+    fixedConversionRate: state.fixedConversionRate,
     travelers: state.travelers,
     mustVisitPlaces: state.mustVisitPlaces,
   };

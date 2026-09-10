@@ -12,6 +12,7 @@ function preferences(overrides: Partial<TripPreferences> = {}): TripPreferences 
     budgetMyr: 4500,
     budgetCurrency: 'MYR',
     destinationCurrency: null,
+    fixedConversionRate: null,
     travelers: 2,
     mustVisitPlaces: [],
     ...overrides,
@@ -61,6 +62,7 @@ describe('toTripContext', () => {
       preferences({
         destinationDescription: 'Tokyo, Japan',
         destinationCurrency: 'JPY',
+        fixedConversionRate: 34.2,
       }),
     );
 

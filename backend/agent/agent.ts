@@ -13,6 +13,10 @@ import {
   hydrateItineraryState,
   resolveClientItinerarySnapshot,
 } from "./lib/itinerary";
+import {
+  hydrateCurrencyRateState,
+  resolveClientCurrencyRate,
+} from "./lib/currency";
 
 const modelscope = createOpenAICompatible({
   name: "modelscope",
@@ -42,6 +46,8 @@ export default defineAgent({
       "step.started": (_event, ctx) => {
         const itinerarySnapshot = resolveClientItinerarySnapshot(ctx.messages);
         if (itinerarySnapshot) hydrateItineraryState(itinerarySnapshot);
+        const currencyRate = resolveClientCurrencyRate(ctx.messages);
+        if (currencyRate) hydrateCurrencyRateState(currencyRate);
 
         const selectedModel = resolveRequestedModel(ctx.messages);
 

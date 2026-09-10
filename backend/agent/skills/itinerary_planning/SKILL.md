@@ -51,6 +51,10 @@ The budget is the total for the whole party for the whole trip unless the travel
 
 Put an approximate `estimatedCostMyr` on stops that cost money, for the whole party. Omit it for free stops. Do not fabricate exact prices.
 
+When `budgetCurrency` and `destinationCurrency` differ, call `convert_currency` exactly once with the complete trip budget. It reads the rate already recorded during onboarding; never calculate the conversion yourself or fetch a live rate. Reuse its result throughout the plan rather than converting every stop. Keep `estimatedCostMyr` and `estimatedTotalMyr` in MYR because that is the itinerary schema's canonical currency.
+
+If `convert_currency` reports that no onboarding pair was recorded, continue budgeting in MYR and mention the missing destination-currency estimate in `assumptions`.
+
 If the trip cannot fit the budget, build the closest affordable version and say so in `assumptions`.
 
 ## 5. Handle food safety

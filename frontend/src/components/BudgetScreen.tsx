@@ -2,7 +2,6 @@ import React from 'react';
 import { ScreenHeader } from './ScreenHeader';
 import { ScreenId } from '../types';
 import { useTripStore } from '../store/tripStore';
-import { getFixedRate } from '../lib/currency';
 
 interface BudgetScreenProps {
   onNavigate: (screen: ScreenId) => void;
@@ -14,10 +13,7 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigate }) => {
   const budget = useTripStore((state) => state.budgetMyr);
   const setBudget = useTripStore((state) => state.setBudgetMyr);
   const destinationCurrency = useTripStore((state) => state.destinationCurrency);
-  const budgetCurrency = useTripStore((state) => state.budgetCurrency);
-  const conversionRate = destinationCurrency
-    ? getFixedRate(budgetCurrency, destinationCurrency)
-    : null;
+  const conversionRate = useTripStore((state) => state.fixedConversionRate);
 
   const presetAmounts = [2500, 4500, 8000];
 

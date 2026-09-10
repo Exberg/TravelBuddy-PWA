@@ -5,6 +5,7 @@ export const FIXED_MYR_RATES: Record<string, number> = {
   CNY: 1.68,
   EUR: 0.21,
   GBP: 0.18,
+  HUF: 84,
   INR: 19.6,
   IDR: 3_700,
   JPY: 34.2,
@@ -22,7 +23,7 @@ export const FIXED_MYR_RATES: Record<string, number> = {
 
 const COUNTRY_CURRENCIES: Record<string, string> = {
   australia: 'AUD', bolivia: 'BOB', cambodia: 'KHR', china: 'CNY',
-  france: 'EUR', germany: 'EUR', india: 'INR', indonesia: 'IDR',
+  france: 'EUR', germany: 'EUR', hungary: 'HUF', india: 'INR', indonesia: 'IDR',
   italy: 'EUR', japan: 'JPY', malaysia: 'MYR', 'new zealand': 'NZD',
   philippines: 'PHP', singapore: 'SGD', 'south korea': 'KRW', spain: 'EUR',
   taiwan: 'TWD', thailand: 'THB', vietnam: 'VND',
