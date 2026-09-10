@@ -12,6 +12,8 @@ import {
 interface StopRowProps {
   stop: ItineraryStop;
   isLast: boolean;
+  isSelected: boolean;
+  onSelect: () => void;
 }
 
 /**
@@ -19,7 +21,7 @@ interface StopRowProps {
  * the agent omits fields it could not verify, and a row should never show an
  * empty cost or an invented travel time.
  */
-function StopRow({ stop, isLast }: StopRowProps) {
+function StopRow({ stop, isLast, isSelected, onSelect }: StopRowProps) {
   const mapsHref =
     stop.googleMapsUri ??
     (stop.placeId
@@ -44,7 +46,24 @@ function StopRow({ stop, isLast }: StopRowProps) {
       </div>
 
       <div className="min-w-0 flex-1 pb-3">
-        <div className="rounded-2xl border border-[#E5E5E5]/70 bg-[#F5F4EE] p-3">
+        <div
+          role="button"
+          tabIndex={0}
+          aria-pressed={isSelected}
+          aria-label={`Select ${stop.title} on the map`}
+          onClick={onSelect}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onSelect();
+            }
+          }}
+          className={`cursor-pointer rounded-2xl border p-3 outline-none transition-[background-color,border-color,box-shadow,transform] focus-visible:ring-2 focus-visible:ring-[#9FE870] active:scale-[0.99] ${
+            isSelected
+              ? 'border-[#163300] bg-[#EAF9DC] shadow-sm'
+              : 'border-[#E5E5E5]/70 bg-[#F5F4EE]'
+          }`}
+        >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="font-headline text-sm font-bold text-[#163300]">
@@ -85,6 +104,7 @@ function StopRow({ stop, isLast }: StopRowProps) {
                 href={mapsHref}
                 target="_blank"
                 rel="noreferrer"
+                onClick={(event) => event.stopPropagation()}
                 className="ml-auto inline-flex items-center gap-0.5 font-label text-[10px] font-bold text-[#163300] underline decoration-[#9FE870] decoration-2 underline-offset-2"
               >
                 Map
@@ -121,9 +141,15 @@ function StopRow({ stop, isLast }: StopRowProps) {
 
 interface ItineraryTimelineProps {
   day: ItineraryDay;
+  selectedStopId: string | null;
+  onSelectStop: (stopId: string) => void;
 }
 
-export function ItineraryTimeline({ day }: ItineraryTimelineProps) {
+export function ItineraryTimeline({
+  day,
+  selectedStopId,
+  onSelectStop,
+}: ItineraryTimelineProps) {
   const cost = dayCostMyr(day.stops);
 
   return (
@@ -152,6 +178,8 @@ export function ItineraryTimeline({ day }: ItineraryTimelineProps) {
             key={stop.id}
             stop={stop}
             isLast={index === day.stops.length - 1}
+            isSelected={stop.id === selectedStopId}
+            onSelect={() => onSelectStop(stop.id)}
           />
         ))}
       </ul>

@@ -8,6 +8,7 @@ import { loadGoogleMaps } from '../lib/googleMaps';
 import { MapPinOverlay } from './MapPinOverlay';
 import { PlaceDetailSheet } from './PlaceDetailSheet';
 import { useTripStore } from '../store/tripStore';
+import { PublicIcon } from './PublicIcon';
 
 interface MapScreenProps {
   onNavigate: (screen: ScreenId) => void;
@@ -33,7 +34,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({ onNavigate }) => {
   // Start with one useful category instead of issuing both paid Places
   // searches before the traveler has expressed interest in cafes or All.
   const [activeFilter, setActiveFilter] = useState<'all' | PlaceCategory>('sights');
-  const [sheetSnap, setSheetSnap] = useState<BottomSheetSnap>('half');
+  // Start at the lower Google Maps-style resting point so the map remains
+  // useful while the must-have controls stay visible above the fold.
+  const [sheetSnap, setSheetSnap] = useState<BottomSheetSnap>('peek');
   const [activePlaceId, setActivePlaceId] = useState<string | null>(null);
   const { places, isLoading, error } = usePlaces(destination, activeFilter);
 
@@ -231,13 +234,13 @@ export const MapScreen: React.FC<MapScreenProps> = ({ onNavigate }) => {
               onClick={recenterMap}
               className="w-10 h-10 rounded-full bg-[#FFFFFF]/95 backdrop-blur-md shadow-md flex items-center justify-center text-[#163300] active:scale-90 transition-transform border border-black/[0.04] cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[20px]">near_me</span>
+              <PublicIcon name="near_me" className="h-5 w-5" />
             </button>
             <button
               aria-label="Layers"
               className="w-10 h-10 rounded-full bg-[#FFFFFF]/95 backdrop-blur-md shadow-md flex items-center justify-center text-[#163300] active:scale-90 transition-transform border border-black/[0.04] cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[20px]">layers</span>
+              <PublicIcon name="layers" className="h-5 w-5" />
             </button>
           </div>
         </div>
@@ -246,6 +249,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ onNavigate }) => {
         <BottomSheet
           snap={sheetSnap}
           onSnapChange={setSheetSnap}
+          minimumSnap="peek"
           label={activePlace ? 'Place details' : 'Places list'}
         >
           {activePlace ? (
@@ -323,9 +327,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ onNavigate }) => {
                         />
                       ) : (
                         <div className="w-14 h-14 rounded-xl bg-[#E9E8E3] shrink-0 flex items-center justify-center">
-                          <span className="material-symbols-outlined text-[22px] text-[#41493A]">
-                            {place.iconName}
-                          </span>
+                          <PublicIcon name={place.iconName} className="h-[22px] w-[22px]" />
                         </div>
                       )}
                       <div className="flex flex-col min-w-0">
@@ -333,9 +335,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ onNavigate }) => {
                           {place.title}
                         </span>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="material-symbols-outlined text-[14px] text-[#41493A]">
-                            {place.iconName}
-                          </span>
+                          <PublicIcon name={place.iconName} className="h-3.5 w-3.5 text-[#41493A]" />
                           <span className="font-body text-[12px] text-[#41493A] font-medium truncate">
                             {place.subtitle}
                           </span>
@@ -356,9 +356,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ onNavigate }) => {
                           : 'bg-[#E9E8E3] text-[#E4E2DD]'
                       }`}
                     >
-                      <span className="material-symbols-outlined text-[20px] font-black">
-                        check
-                      </span>
+                      <PublicIcon name="check" className="h-5 w-5" />
                     </button>
                   </div>
                 );
@@ -380,9 +378,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ onNavigate }) => {
             selectedCount === 0 ? 'opacity-50' : 'opacity-100'
           }`}
         >
-          <span className="material-symbols-filled text-[20px]">
-            auto_awesome
-          </span>
+          <PublicIcon name="auto_awesome" className="h-5 w-5" />
           <span>
             {selectedCount > 0 ? `Build Itinerary (${selectedCount})` : 'Select Places to Continue'}
           </span>

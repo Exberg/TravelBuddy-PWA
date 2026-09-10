@@ -1,5 +1,7 @@
 import { defineTool } from "eve/tools";
 import { z } from "zod";
+import { fixedRate } from "../lib/currency";
+import { resolveTravelBuddyContext } from "../model-selection";
 
 const currencyCodeSchema = z
   .string()
@@ -14,8 +16,8 @@ const successSchema = z.object({
   amount: z.number(),
   rate: z.number(),
   convertedAmount: z.number(),
-  date: z.string(),
-  source: z.literal("Frankfurter"),
+  date: z.literal("fixed-planning-rate"),
+  source: z.literal("TravelBuddy fixed planning rate"),
 });
 
 const errorSchema = z.object({
@@ -40,7 +42,7 @@ function roundCurrency(value: number): number {
 
 export default defineTool({
   description:
-    "Convert an amount between currencies using the latest working-day rate from Frankfurter. Use this for explicit currency conversions, such as converting a MYR budget to JPY; do not guess exchange rates. Returns the rate, converted amount, and rate date in a structured result.",
+    "Convert an amount using TravelBuddy's fixed planning rate. Use this for explicit currency conversions, such as converting a MYR budget to JPY. Do not present the result as a live market rate.",
   inputSchema: z.object({
     from: currencyCodeSchema,
     to: currencyCodeSchema,
@@ -48,85 +50,38 @@ export default defineTool({
   }),
   outputSchema: resultSchema,
   async execute({ from, to, amount }, ctx) {
-    const url = new URL(
-      `https://api.frankfurter.dev/v2/rate/${encodeURIComponent(from)}/${encodeURIComponent(to)}`,
-    );
-
-    try {
-      const response = await fetch(url, { signal: ctx.abortSignal });
-      if (!response.ok) {
-        return {
-          success: false as const,
-          from,
-          to,
-          amount,
-          error: {
-            code: "frankfurter_http_error",
-            message: `Frankfurter returned HTTP ${response.status}.`,
-          },
-        };
-      }
-
-      const data: unknown = await response.json();
-      if (!isFrankfurterResponse(data)) {
-        return {
-          success: false as const,
-          from,
-          to,
-          amount,
-          error: {
-            code: "invalid_frankfurter_response",
-            message: "Frankfurter did not return a numeric rate for that currency pair.",
-          },
-        };
-      }
-
-      return {
-        success: true as const,
-        from,
-        to,
-        amount,
-        rate: data.rate,
-        convertedAmount: roundCurrency(amount * data.rate),
-        date: data.date,
-        source: "Frankfurter" as const,
-      };
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
-        throw error;
-      }
-
-      return {
-        success: false as const,
-        from,
-        to,
-        amount,
-        error: {
-          code: "frankfurter_request_failed",
-          message: "Unable to reach Frankfurter right now.",
-        },
-      };
+    const context = resolveTravelBuddyContext(ctx.messages);
+    const trip = context?.trip;
+    const configuredFrom = typeof trip === "object" && trip !== null &&
+      typeof (trip as { budgetCurrency?: unknown }).budgetCurrency === "string"
+      ? (trip as { budgetCurrency: string }).budgetCurrency.toUpperCase()
+      : undefined;
+    const configuredTo = typeof trip === "object" && trip !== null &&
+      typeof (trip as { destinationCurrency?: unknown }).destinationCurrency === "string"
+      ? (trip as { destinationCurrency: string }).destinationCurrency.toUpperCase()
+      : undefined;
+    const configuredRate = typeof trip === "object" && trip !== null &&
+      typeof (trip as { fixedConversionRate?: unknown }).fixedConversionRate === "number"
+      ? (trip as { fixedConversionRate: number }).fixedConversionRate
+      : null;
+    const normalizedFrom = from.toUpperCase();
+    const normalizedTo = to.toUpperCase();
+    const rate = configuredFrom === normalizedFrom && configuredTo === normalizedTo && configuredRate !== null
+      ? configuredRate
+      : fixedRate(normalizedFrom, normalizedTo);
+    if (rate === null) {
+      return { success: false as const, from: normalizedFrom, to: normalizedTo, amount,
+        error: { code: "unsupported_currency", message: "No fixed planning rate is configured for that currency pair." } };
     }
+    return {
+      success: true as const,
+      from: normalizedFrom,
+      to: normalizedTo,
+      amount,
+      rate,
+      convertedAmount: roundCurrency(amount * rate),
+      date: "fixed-planning-rate" as const,
+      source: "TravelBuddy fixed planning rate" as const,
+    };
   },
 });
-
-function isFrankfurterResponse(
-  value: unknown,
-): value is { date: string; base: string; quote: string; rate: number } {
-  if (typeof value !== "object" || value === null) return false;
-
-  const response = value as {
-    date?: unknown;
-    base?: unknown;
-    quote?: unknown;
-    rate?: unknown;
-  };
-  return (
-    typeof response.date === "string" &&
-    typeof response.base === "string" &&
-    typeof response.quote === "string" &&
-    typeof response.rate === "number" &&
-    Number.isFinite(response.rate) &&
-    response.rate >= 0
-  );
-}

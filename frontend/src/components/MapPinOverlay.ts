@@ -5,6 +5,7 @@
 //
 // This module must only be used after `loadGoogleMaps()` has resolved and
 // the `marker` library has been imported, so `google.maps.marker` exists.
+import { publicIconHref } from '../lib/icons';
 
 export interface MapPinOverlayOptions {
   position: google.maps.LatLngLiteral;
@@ -16,10 +17,12 @@ export interface MapPinOverlayOptions {
 }
 
 function buildPinHtml(pinIcon: string, pinLabel: string, isSelected: boolean): string {
+  const iconHref = publicIconHref(pinIcon);
+
   if (isSelected) {
     return `
       <div class="pin-bubble flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#163300] text-[#9FE870] shadow-lg ring-2 ring-white transition-all">
-        <span class="material-symbols-filled text-[15px]">${pinIcon}</span>
+        <svg class="h-[15px] w-[15px]" aria-hidden="true"><use href="${iconHref}"></use></svg>
         <span class="font-label text-[12px] font-bold tracking-tight text-white whitespace-nowrap">${pinLabel}</span>
       </div>
       <div class="w-2 h-2 bg-[#163300] rotate-45 mx-auto -mt-1 shadow-sm"></div>
@@ -28,7 +31,7 @@ function buildPinHtml(pinIcon: string, pinLabel: string, isSelected: boolean): s
 
   return `
     <div class="pin-bubble flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FFFFFF]/95 text-[#163300] shadow-md ring-1 ring-black/[0.06] transition-all">
-      <span class="material-symbols-outlined text-[13px] text-[#41493A]">${pinIcon}</span>
+      <svg class="h-[13px] w-[13px]" aria-hidden="true"><use href="${iconHref}"></use></svg>
       <span class="font-label text-[11px] font-medium whitespace-nowrap text-[#163300]">${pinLabel}</span>
     </div>
     <div class="w-1.5 h-1.5 bg-[#FFFFFF]/95 rotate-45 mx-auto -mt-0.5"></div>

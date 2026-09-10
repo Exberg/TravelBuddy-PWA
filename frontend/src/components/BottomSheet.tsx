@@ -1,16 +1,22 @@
 import React, { useEffect, useRef } from 'react';
 import { animate, motion, useMotionValue } from 'motion/react';
 
-export type BottomSheetSnap = 'collapsed' | 'half' | 'full';
+export type BottomSheetSnap = 'sticky' | 'peek' | 'half' | 'full';
 
 interface BottomSheetProps {
   snap: BottomSheetSnap;
   onSnapChange: (snap: BottomSheetSnap) => void;
+  onDismiss?: () => void;
+  /** Prevents this sheet from settling below the requested snap point. */
+  minimumSnap?: BottomSheetSnap;
+  /** Allows the handle to hide the sheet when it is already at its lowest snap. */
+  dismissible?: boolean;
   label: string;
   children: React.ReactNode;
 }
 
-const COLLAPSED_HEIGHT = 176;
+const STICKY_HEIGHT = 88;
+const PEEK_HEIGHT_RATIO = 0.42;
 const HALF_HEIGHT_RATIO = 0.68;
 const HEADER_HEIGHT = 56;
 
@@ -23,36 +29,69 @@ function getSnapHeight(snap: BottomSheetSnap) {
 
   switch (snap) {
     case 'full':
-      return Math.max(COLLAPSED_HEIGHT, viewportHeight - HEADER_HEIGHT);
+      return Math.max(STICKY_HEIGHT, viewportHeight - HEADER_HEIGHT);
+    case 'peek':
+      // A Google Maps-style mobile resting position: useful content remains
+      // visible without taking over the screen.
+      return Math.max(STICKY_HEIGHT, viewportHeight * PEEK_HEIGHT_RATIO);
     case 'half':
-      return Math.max(COLLAPSED_HEIGHT, viewportHeight * HALF_HEIGHT_RATIO);
-    case 'collapsed':
+      return Math.max(STICKY_HEIGHT, viewportHeight * HALF_HEIGHT_RATIO);
+    case 'sticky':
     default:
-      return COLLAPSED_HEIGHT;
+      return STICKY_HEIGHT;
   }
 }
 
 function clampHeight(height: number) {
-  return Math.min(getSnapHeight('full'), Math.max(COLLAPSED_HEIGHT, height));
+  return Math.min(getSnapHeight('full'), Math.max(0, height));
 }
 
-function nearestSnap(height: number, velocityY: number): BottomSheetSnap {
+function snapRank(snap: BottomSheetSnap) {
+  return ({ sticky: 0, peek: 1, half: 2, full: 3 })[snap];
+}
+
+function enforceMinimumSnap(snap: BottomSheetSnap, minimumSnap: BottomSheetSnap) {
+  return snapRank(snap) < snapRank(minimumSnap) ? minimumSnap : snap;
+}
+
+function nearestSnap(
+  height: number,
+  velocityY: number,
+  minimumSnap: BottomSheetSnap,
+  dismissible: boolean,
+): BottomSheetSnap | 'dismissed' {
   const heights = {
-    collapsed: getSnapHeight('collapsed'),
+    sticky: getSnapHeight('sticky'),
+    peek: getSnapHeight('peek'),
     half: getSnapHeight('half'),
     full: getSnapHeight('full'),
   };
+  const lowestHeight = heights[minimumSnap];
 
   // A quick upward/downward release should bias toward the next snap rather
   // than making the user drag all the way past its midpoint.
-  if (velocityY < -500) return height < heights.half ? 'half' : 'full';
-  if (velocityY > 500) return height > heights.half ? 'half' : 'collapsed';
+  if (velocityY < -500) {
+    return height < heights.half ? 'half' : 'full';
+  }
+  if (velocityY > 650 && height < lowestHeight * 1.35) {
+    return dismissible ? 'dismissed' : minimumSnap;
+  }
+  if (velocityY > 500) {
+    return enforceMinimumSnap(height > heights.half ? 'half' : 'peek', minimumSnap);
+  }
 
-  return (Object.keys(heights) as BottomSheetSnap[]).reduce((closest, candidate) =>
-    Math.abs(heights[candidate] - height) < Math.abs(heights[closest] - height)
-      ? candidate
-      : closest,
-  'collapsed');
+  if (height < lowestHeight * 0.55) {
+    return dismissible ? 'dismissed' : minimumSnap;
+  }
+
+  return enforceMinimumSnap(
+    (Object.keys(heights) as BottomSheetSnap[]).reduce((closest, candidate) =>
+      Math.abs(heights[candidate] - height) < Math.abs(heights[closest] - height)
+        ? candidate
+        : closest,
+    'sticky'),
+    minimumSnap,
+  );
 }
 
 /**
@@ -62,6 +101,9 @@ function nearestSnap(height: number, velocityY: number): BottomSheetSnap {
 export const BottomSheet: React.FC<BottomSheetProps> = ({
   snap,
   onSnapChange,
+  onDismiss,
+  minimumSnap = 'sticky',
+  dismissible = Boolean(onDismiss),
   label,
   children,
 }) => {
@@ -121,7 +163,22 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     if (!drag.active) return;
 
     drag.active = false;
-    const targetSnap = nearestSnap(sheetHeight.get(), drag.velocityY);
+    const targetSnap = nearestSnap(
+      sheetHeight.get(),
+      drag.velocityY,
+      minimumSnap,
+      dismissible,
+    );
+    if (targetSnap === 'dismissed') {
+      void animate(sheetHeight, 0, {
+        type: 'spring',
+        stiffness: 420,
+        damping: 42,
+        restSpeed: 0.5,
+      }).then(() => onDismiss?.());
+      return;
+    }
+
     onSnapChange(targetSnap);
     animate(sheetHeight, getSnapHeight(targetSnap), {
       type: 'spring',
@@ -136,7 +193,24 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
       didDragRef.current = false;
       return;
     }
-    onSnapChange(snap === 'collapsed' ? 'half' : 'collapsed');
+    if (snap === minimumSnap && dismissible) {
+      void animate(sheetHeight, 0, {
+        type: 'spring',
+        stiffness: 420,
+        damping: 42,
+        restSpeed: 0.5,
+      }).then(() => onDismiss?.());
+      return;
+    }
+
+    const nextSnap = snap === 'full'
+      ? 'half'
+      : snap === 'half'
+        ? 'peek'
+        : snap === 'peek'
+          ? (minimumSnap === 'sticky' ? 'sticky' : 'peek')
+          : 'half';
+    onSnapChange(enforceMinimumSnap(nextSnap, minimumSnap));
   };
 
   return (
@@ -147,8 +221,16 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     >
       <button
         type="button"
-        aria-label={snap === 'full' ? `Collapse ${label}` : snap === 'half' ? `Expand ${label} to full screen` : `Expand ${label}`}
-        aria-expanded={snap !== 'collapsed'}
+        aria-label={
+          snap === 'full'
+            ? `Collapse ${label}`
+            : snap === 'half'
+              ? `Collapse ${label} to the lower resting point`
+              : snap === 'peek'
+                ? `Expand ${label}`
+                : `Expand ${label}`
+        }
+        aria-expanded={snap !== 'sticky'}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={settleAfterDrag}

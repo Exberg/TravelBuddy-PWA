@@ -1,6 +1,9 @@
-import { useRef, type ReactNode } from 'react';
+import { useMemo, useRef, type ReactNode } from 'react';
 import { useEveAgentRuntime } from '@assistant-ui/eve';
-import { AssistantRuntimeProvider } from '@assistant-ui/react';
+import {
+  AssistantRuntimeProvider,
+  WebSpeechDictationAdapter,
+} from '@assistant-ui/react';
 import {
   Client,
   type ClientSessionState,
@@ -14,6 +17,13 @@ import {
   useTripStore,
 } from '../store/tripStore';
 import type { LocalChat } from '../lib/chatHistory';
+
+const CHAT_SUGGESTIONS = [
+  { prompt: 'Build my itinerary' },
+  { prompt: 'Make day 2 more relaxed' },
+  { prompt: 'Swap lunch for a halal option' },
+  { prompt: 'Add a sunset spot' },
+] as const;
 
 interface EveAssistantProviderProps {
   children: ReactNode;
@@ -52,12 +62,27 @@ export function EveAssistantProvider({
   const eventsRef = useRef<MessageStreamEvent[]>([...chat.events]);
   const sessionRef = useRef<ClientSessionState | undefined>(chat.session);
   const configuredHost = import.meta.env.VITE_EVE_URL?.trim();
+  const dictationAdapter = useMemo(
+    () =>
+      WebSpeechDictationAdapter.isSupported()
+        ? new WebSpeechDictationAdapter({
+            language: 'en-US',
+            continuous: false,
+            interimResults: true,
+          })
+        : undefined,
+    [],
+  );
 
   const runtime = useEveAgentRuntime({
     ...(configuredHost ? { host: configuredHost } : {}),
     initialEvents: chat.events,
     initialSession: chat.session,
     resume: chat.session !== undefined && chat.resumeOnMount,
+    suggestions: CHAT_SUGGESTIONS,
+    adapters: {
+      dictation: dictationAdapter,
+    },
     prepareSend: (input) => {
       onChatChange(chat.id, {
         resumeOnMount: true,

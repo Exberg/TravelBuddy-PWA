@@ -4,6 +4,7 @@ import { ScreenHeader } from './ScreenHeader';
 import { ScreenId } from '../types';
 import { usePlaceAutocomplete } from '../hooks/usePlaceAutocomplete';
 import { useTripStore } from '../store/tripStore';
+import { PublicIcon } from './PublicIcon';
 
 interface WhereToScreenProps {
   onNavigate: (screen: ScreenId) => void;
@@ -90,7 +91,7 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({ onNavigate }) => {
           {/* Search Capsule */}
           <div className="relative w-full mb-7 group">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-[#163300]/60">
-              <span className="material-symbols-outlined text-[22px]">search</span>
+              <PublicIcon name="search" className="h-[22px] w-[22px]" />
             </div>
             <input
               id="destination-input"
@@ -120,7 +121,7 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({ onNavigate }) => {
                 }}
                 className="absolute inset-y-0 right-0 pr-4 flex items-center text-[#163300]/40 hover:text-[#163300] transition-colors cursor-pointer"
               >
-                <span className="material-symbols-outlined text-[20px]">cancel</span>
+                <PublicIcon name="cancel" className="h-5 w-5" />
               </button>
             )}
           </div>
@@ -146,9 +147,7 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({ onNavigate }) => {
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
                       <div className="w-11 h-11 rounded-xl bg-[#F5F4EE] shrink-0 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-[20px] text-[#41493A]">
-                          location_on
-                        </span>
+                        <PublicIcon name="location_on" className="h-5 w-5 text-[#41493A]" />
                       </div>
                       <div className="flex flex-col min-w-0">
                         <span className="font-headline font-bold text-[16px] text-[#163300] truncate">
@@ -171,9 +170,7 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({ onNavigate }) => {
           ) : (
             <div className="flex flex-col items-center gap-3 rounded-[16px] border border-dashed border-[#E9E8E3] bg-[#FFFFFF]/60 px-6 py-10 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F5F4EE]">
-                <span className="material-symbols-outlined text-[24px] text-[#41493A]">
-                  travel_explore
-                </span>
+                <PublicIcon name="travel_explore" className="h-6 w-6 text-[#41493A]" />
               </div>
               <p className="font-headline text-[15px] font-bold text-[#163300]">
                 Search for a destination

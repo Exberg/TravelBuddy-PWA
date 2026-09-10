@@ -10,7 +10,7 @@
         "@vercel/connect": "1.0.0",
         "ai": "^7.0.82",
         "cheerio": "^1.0.0",
-        "eve": "^0.52.2",
+        "eve": "^0.52.3",
         "robots-parser": "^3.0.1",
         "zod": "4.5.4",
       },
@@ -164,7 +164,7 @@
 
     "env-runner": ["env-runner@0.2.1", "", { "dependencies": { "crossws": "^0.4.12", "exsolve": "^1.1.1", "httpxy": "^0.5.5", "srvx": "^1.0.0" }, "bin": "dist/cli.mjs" }, "sha512-2iDP2DfheAMMAKeXBggEuFmpSq+1Xs6wQoHba1g65pZFXlC3VHD1O6/tgVzS6GQLv+P2koPKZPKgKhXkigNBdg=="],
 
-    "eve": ["eve@0.52.2", "", { "dependencies": { "nitro": "3.0.260903-beta", "undici": "8.9.0" }, "peerDependencies": { "@opentelemetry/api": "^1.0.0", "ai": "^7.0.82", "braintrust": "^3.0.0", "just-bash": "^3.1.0", "microsandbox": "^0.5.0" }, "optionalPeers": ["@opentelemetry/api", "braintrust", "just-bash", "microsandbox"], "bin": "bin/eve.js" }, "sha512-FM3aC2A3SCKQxtyhSNR5+CaIVlKJmTGb7rCqcuHEhZShDKo1IXCTt/F7r4toqkLDG6lW7VcStTku77KWiosLfg=="],
+    "eve": ["eve@0.52.3", "", { "dependencies": { "nitro": "3.0.260903-beta", "undici": "8.9.0" }, "peerDependencies": { "@opentelemetry/api": "^1.0.0", "ai": "^7.0.82", "braintrust": "^3.0.0", "just-bash": "^3.1.0", "microsandbox": "^0.5.0" }, "optionalPeers": ["@opentelemetry/api", "braintrust", "just-bash", "microsandbox"], "bin": "bin/eve.js" }, "sha512-Ii/fs18oBX7mVoywtAy8Pmi0sHRWVx8/IR0Uzhic3e/WkcFLTmr07ewfaH3VJ1h5Y9SpeUni2WfBE5Yd83mv0A=="],
 
     "eventsource-parser": ["eventsource-parser@3.1.1", "", {}, "sha512-EKN1vKAMcZ8MlYMpaNuxN6R9yakzH6uajHcHVTqWJzvu5pWw9DyhbP35HH8MVBQ+dZjAfDxk+A8NiR9KWaXiyQ=="],
 

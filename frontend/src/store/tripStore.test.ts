@@ -3,12 +3,15 @@ import { nightsBetween, toTripContext, type TripPreferences } from './tripStore'
 
 function preferences(overrides: Partial<TripPreferences> = {}): TripPreferences {
   return {
+    travelPreferences: '',
     destination: 'Penang',
     destinationDescription: null,
     startDate: null,
     endDate: null,
     durationLabel: '2 Weeks',
     budgetMyr: 4500,
+    budgetCurrency: 'MYR',
+    destinationCurrency: null,
     travelers: 2,
     mustVisitPlaces: [],
     ...overrides,
@@ -53,6 +56,21 @@ describe('toTripContext', () => {
     expect(context.durationPreference).toBeUndefined();
   });
 
+  test('passes the selected currency pair and fixed rate to the agent', () => {
+    const context = toTripContext(
+      preferences({
+        destinationDescription: 'Tokyo, Japan',
+        destinationCurrency: 'JPY',
+      }),
+    );
+
+    expect(context).toMatchObject({
+      budgetCurrency: 'MYR',
+      destinationCurrency: 'JPY',
+      fixedConversionRate: 34.2,
+    });
+  });
+
   test('falls back to the duration preset when dates are not set', () => {
     const context = toTripContext(preferences({ durationLabel: 'Weekend' }));
 
@@ -91,5 +109,24 @@ describe('toTripContext', () => {
     expect(context.mustVisitPlaces).toEqual([
       { name: 'Cheong Fatt Tze Mansion', lat: 5.4212, lng: 100.3345 },
     ]);
+  });
+
+  test('sends non-empty likes and dislikes to the agent', () => {
+    const context = toTripContext(
+      preferences({
+        travelPreferences: '  I like local food. I dislike early mornings.  ',
+      }),
+    );
+
+    expect(context.travelPreferences).toBe(
+      'I like local food. I dislike early mornings.',
+    );
+  });
+
+  test('omits blank travel preferences', () => {
+    expect(
+      toTripContext(preferences({ travelPreferences: '   ' }))
+        .travelPreferences,
+    ).toBeUndefined();
   });
 });

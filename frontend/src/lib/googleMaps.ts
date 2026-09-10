@@ -4,6 +4,7 @@ import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
 // page. Every caller awaits the same promise instead of re-triggering a load.
 let loadPromise: Promise<typeof google.maps> | null = null;
 let placesPromise: Promise<google.maps.PlacesLibrary> | null = null;
+let routesPromise: Promise<google.maps.RoutesLibrary> | null = null;
 let optionsSet = false;
 
 function configureGoogleMaps() {
@@ -49,4 +50,20 @@ export function loadGooglePlaces(): Promise<google.maps.PlacesLibrary> {
 
   placesPromise = importLibrary('places') as Promise<google.maps.PlacesLibrary>;
   return placesPromise;
+}
+
+// Route computation is billable and is only needed by the itinerary map.
+// Keeping this separate prevents other map and autocomplete surfaces from
+// downloading the Routes library.
+export function loadGoogleRoutes(): Promise<google.maps.RoutesLibrary> {
+  if (routesPromise) return routesPromise;
+
+  try {
+    configureGoogleMaps();
+  } catch (error) {
+    return Promise.reject(error);
+  }
+
+  routesPromise = importLibrary('routes') as Promise<google.maps.RoutesLibrary>;
+  return routesPromise;
 }

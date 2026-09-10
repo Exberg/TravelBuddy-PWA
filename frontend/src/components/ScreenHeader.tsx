@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, type ReactNode } from 'react';
 import { ScreenId } from '../types';
 
 interface ScreenHeaderProps {
@@ -7,6 +7,7 @@ interface ScreenHeaderProps {
   showBack?: boolean;
   currentScreen: ScreenId;
   onNavigate: (screen: ScreenId) => void;
+  rightAction?: ReactNode;
 }
 
 export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
@@ -15,6 +16,7 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
   showBack = true,
   currentScreen,
   onNavigate,
+  rightAction,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -50,6 +52,8 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
         )}
 
         <div className="relative">
+          {rightAction ?? (
+          <>
           <button
             id="header-profile-btn"
             aria-label="Switch screen or profile"
@@ -103,6 +107,8 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
                 })}
               </div>
             </>
+          )}
+          </>
           )}
         </div>
       </div>

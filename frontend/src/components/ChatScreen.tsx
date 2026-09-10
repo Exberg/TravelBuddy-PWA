@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { toast } from 'sonner';
 import { type EveAuthorizationData, useEveError } from '@assistant-ui/eve';
 import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown';
@@ -34,6 +42,11 @@ import {
   type LocalChatHistory,
 } from '../lib/chatHistory';
 
+const ItineraryMap = lazy(async () => {
+  const module = await import('./ItineraryMap');
+  return { default: module.ItineraryMap };
+});
+
 interface ChatScreenProps {
   onNavigate: (screen: ScreenId) => void;
 }
@@ -44,13 +57,6 @@ interface ChatContentProps extends ChatScreenProps {
   onNewChat: () => void;
   onSelectChat: (chatId: string) => void;
 }
-
-const QUICK_PROMPTS = [
-  'Build my itinerary',
-  'Make day 2 more relaxed',
-  'Swap lunch for a halal option',
-  'Add a sunset spot',
-];
 
 const AuthorizationUI = makeAssistantDataUI<EveAuthorizationData>({
   name: 'authorization',
@@ -135,26 +141,6 @@ function UserMessage() {
           <MessagePrimitive.Parts />
         </div>
       </div>
-
-      <ActionBarPrimitive.Root
-        hideWhenRunning
-        autohide="not-last"
-        className="flex items-center gap-1 pr-1"
-      >
-        <ActionBarPrimitive.Copy
-          aria-label="Copy your message"
-          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-[#41493A]/70 transition-colors hover:bg-[#F5F4EE] hover:text-[#163300]"
-        >
-          <AuiIf condition={(state) => state.message.isCopied}>
-            <span className="material-symbols-outlined text-[15px]">check</span>
-          </AuiIf>
-          <AuiIf condition={(state) => !state.message.isCopied}>
-            <span className="material-symbols-outlined text-[15px]">
-              content_copy
-            </span>
-          </AuiIf>
-        </ActionBarPrimitive.Copy>
-      </ActionBarPrimitive.Root>
     </MessagePrimitive.Root>
   );
 }
@@ -188,7 +174,7 @@ function MessageBranchPicker() {
   );
 }
 
-function AssistantMessage() {
+function AssistantMessage({ onOpenItinerary }: { onOpenItinerary: () => void }) {
   return (
     <MessagePrimitive.Root className="tb-rise flex w-full flex-col gap-2.5 pr-2">
       <div className="flex items-center gap-2 pl-1">
@@ -243,7 +229,12 @@ function AssistantMessage() {
                 );
               case 'tool-call':
                 if (part.toolName === 'save_itinerary') {
-                  return <ItineraryToolCard {...part} />;
+                  return (
+                    <ItineraryToolCard
+                      {...part}
+                      onOpenItinerary={onOpenItinerary}
+                    />
+                  );
                 }
                 // Respect a registered tool UI when one exists, otherwise fall
                 // back to the generic status card.
@@ -305,12 +296,142 @@ function ChatError() {
 
   useEffect(() => {
     if (!error) return;
+
+    console.error('[TravelBuddy] Eve agent request failed', error);
     toast.error('TravelBuddy could not reach the agent', {
-      description: 'Check the Eve server and try again.',
+      description: error.message || 'Check the Eve server and try again.',
     });
   }, [error]);
 
   return null;
+}
+
+interface ChatPanelProps {
+  children: ReactNode;
+  composer: ReactNode;
+}
+
+/**
+ * The assistant-ui conversation panel. Keeping the panel boundary separate
+ * from the screen shell lets the itinerary drawer and chat history remain
+ * TravelBuddy-specific while the conversation uses assistant-ui primitives.
+ */
+function ChatPanel({ children, composer }: ChatPanelProps) {
+  return (
+    <ThreadPrimitive.Root className="flex min-h-0 flex-1 flex-col pt-14">
+      <ThreadPrimitive.ViewportProvider>
+        {children}
+        {composer}
+      </ThreadPrimitive.ViewportProvider>
+    </ThreadPrimitive.Root>
+  );
+}
+
+interface MobileComposerProps {
+  onNavigate: (screen: ScreenId) => void;
+}
+
+/** Mobile-first assistant-ui composer with TravelBuddy's persistent settings action. */
+function MobileComposer({ onNavigate }: MobileComposerProps) {
+  return (
+    <div className="chat-composer-dock pointer-events-none absolute inset-x-0 bottom-0 z-40 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-16">
+      <div aria-hidden="true" className="chat-composer-fade" />
+
+      <div className="relative z-10">
+        <div className="mb-2 flex justify-center">
+          <ThreadPrimitive.ScrollToBottom
+            aria-label="Scroll to the latest message"
+            className="pointer-events-auto flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-[#E5E5E5] bg-white/95 text-[#163300] shadow-md backdrop-blur transition-transform active:scale-90 disabled:pointer-events-none disabled:opacity-0"
+          >
+            <span className="material-symbols-outlined text-[18px]">
+              arrow_downward
+            </span>
+          </ThreadPrimitive.ScrollToBottom>
+        </div>
+
+        <AuiIf condition={(state) => !state.thread.isRunning}>
+          <div className="no-scrollbar mb-2 flex items-center gap-1.5 overflow-x-auto py-1">
+            <ThreadPrimitive.Suggestions>
+              {({ suggestion }) => (
+                <ThreadPrimitive.Suggestion
+                  prompt={suggestion.prompt}
+                  send
+                  className="pointer-events-auto shrink-0 cursor-pointer rounded-full border border-[#E5E5E5] bg-white px-3 py-1.5 font-headline text-xs font-semibold text-[#163300] transition-colors hover:border-[#9FE870] hover:bg-[#eaf9dc] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {suggestion.title ?? suggestion.label ?? suggestion.prompt}
+                </ThreadPrimitive.Suggestion>
+              )}
+            </ThreadPrimitive.Suggestions>
+          </div>
+        </AuiIf>
+
+        <ComposerPrimitive.Root className="pointer-events-auto mx-auto flex w-full items-center gap-2">
+          <button
+            type="button"
+            title="Trip settings"
+            aria-label="Open trip settings"
+            onClick={() => onNavigate('trip-settings')}
+            className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#F5F4EE] text-[#41493A] transition-colors hover:bg-[#eaf9dc] hover:text-[#163300] active:scale-90"
+          >
+            <span className="material-symbols-outlined text-[20px]">settings</span>
+          </button>
+
+          <div className="flex min-h-10 min-w-0 flex-1 items-center rounded-full border border-[#E5E5E5] bg-white px-3">
+            <ComposerPrimitive.Input
+              rows={1}
+              submitMode="enter"
+              placeholder="Ask TravelBuddy..."
+              className="max-h-24 min-h-6 min-w-0 flex-1 resize-none bg-transparent py-2 font-body text-sm text-[#163300] outline-none placeholder:text-[#41493A]/60"
+            />
+
+            <AuiIf condition={(state) => state.thread.isRunning}>
+              <GridMatrixLoader
+                size={3}
+                label="TravelBuddy is responding"
+                className="mr-0.5"
+              />
+              <ComposerPrimitive.Cancel
+                aria-label="Stop response"
+                className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#163300] text-white transition-transform active:scale-90"
+              >
+                <span className="material-symbols-outlined text-[17px]">stop</span>
+              </ComposerPrimitive.Cancel>
+            </AuiIf>
+            <AuiIf condition={(state) => !state.thread.isRunning}>
+              <AuiIf condition={(state) => state.composer.dictation != null}>
+                <ComposerPrimitive.StopDictation
+                  aria-label="Stop dictation"
+                  className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#163300] transition-colors hover:bg-[#eaf9dc] active:scale-90"
+                >
+                  <span className="material-symbols-outlined text-[19px]">mic</span>
+                </ComposerPrimitive.StopDictation>
+              </AuiIf>
+              <AuiIf condition={(state) => state.composer.dictation == null}>
+                <ComposerPrimitive.Dictate
+                  aria-label="Use voice input"
+                  title="Use voice input"
+                  className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#41493A] transition-colors hover:bg-[#eaf9dc] hover:text-[#163300] active:scale-90 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <span className="material-symbols-outlined text-[19px]">mic</span>
+                </ComposerPrimitive.Dictate>
+              </AuiIf>
+            </AuiIf>
+          </div>
+
+          <AuiIf condition={(state) => !state.thread.isRunning}>
+            <ComposerPrimitive.Send
+              aria-label="Send message"
+              className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#9FE870] text-[#163300] shadow-xs transition-all hover:brightness-105 active:scale-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-[19px] font-bold">
+                arrow_upward
+              </span>
+            </ComposerPrimitive.Send>
+          </AuiIf>
+        </ComposerPrimitive.Root>
+      </div>
+    </div>
+  );
 }
 
 function ChatContent({
@@ -321,19 +442,55 @@ function ChatContent({
   onSelectChat,
 }: ChatContentProps) {
   const [activeDayNumber, setActiveDayNumber] = useState(1);
-  const [isItineraryCollapsed, setIsItineraryCollapsed] = useState(false);
   const [sheetSnap, setSheetSnap] = useState<BottomSheetSnap>('half');
+  const [isSheetVisible, setIsSheetVisible] = useState(
+    () => useTripStore.getState().itinerary !== null,
+  );
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isItineraryMapOpen, setIsItineraryMapOpen] = useState(false);
+  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
 
   // The timeline is driven entirely by what the agent published through
   // save_itinerary; there is no mock schedule behind it any more.
   const itinerary = useTripStore((state) => state.itinerary);
+  const itineraryRevision = useTripStore((state) => state.revision);
   const destination = useTripStore((state) => state.destination);
+
+  // A successful save_itinerary publish is the AI's explicit signal that the
+  // itinerary is fresh. It reopens the sheet even after a full dismissal.
+  useEffect(() => {
+    if (!itinerary || itineraryRevision === 0) return;
+    setIsSheetVisible(true);
+    setSheetSnap('half');
+  }, [itinerary, itineraryRevision]);
+
+  const openItinerary = () => {
+    if (!itinerary) return;
+    setIsSheetVisible(true);
+    setSheetSnap('half');
+  };
 
   const activeDay =
     itinerary?.days.find((day) => day.day === activeDayNumber) ??
     itinerary?.days[0] ??
     null;
+
+  const mappedStops = useMemo(
+    () =>
+      activeDay?.stops.filter(
+        (stop) => typeof stop.lat === 'number' && typeof stop.lng === 'number',
+      ) ?? [],
+    [activeDay],
+  );
+
+  useEffect(() => {
+    if (mappedStops.some((stop) => stop.id === selectedStopId)) return;
+    setSelectedStopId(mappedStops[0]?.id ?? activeDay?.stops[0]?.id ?? null);
+  }, [activeDay, mappedStops, selectedStopId]);
+
+  const selectStop = useCallback((stopId: string) => {
+    setSelectedStopId(stopId);
+  }, []);
 
   const totalCost = itinerary?.estimatedTotalMyr ?? null;
 
@@ -342,10 +499,23 @@ function ChatContent({
       <AuthorizationUI />
       <div className="relative mx-auto flex h-[100dvh] w-full max-w-[430px] flex-col overflow-hidden bg-[#FBF9F4] text-[#163300]">
         <ScreenHeader
-          title="AI Chat"
+          title={isItineraryMapOpen ? 'Trip map' : 'AI Chat'}
           currentScreen="chat"
           onBack={() => onNavigate('home')}
           onNavigate={onNavigate}
+          rightAction={activeDay && mappedStops.length > 0 ? (
+            <button
+              type="button"
+              aria-label={isItineraryMapOpen ? 'Switch to AI chat' : 'Switch to itinerary map'}
+              title={isItineraryMapOpen ? 'Switch to AI chat' : 'Switch to itinerary map'}
+              onClick={() => setIsItineraryMapOpen((open) => !open)}
+              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[#163300] text-[#9FE870] shadow-sm transition-transform active:scale-95"
+            >
+              <span className="material-symbols-filled text-[18px]">
+                {isItineraryMapOpen ? 'chat' : 'map'}
+              </span>
+            </button>
+          ) : null}
         />
 
         {isHistoryOpen ? (
@@ -415,8 +585,31 @@ function ChatContent({
           </>
         ) : null}
 
-        <ThreadPrimitive.Root className="flex min-h-0 flex-1 flex-col pt-14">
-          <ThreadPrimitive.ViewportProvider>
+        {isItineraryMapOpen && activeDay ? (
+          <main className="absolute inset-0 top-14 overflow-hidden">
+            <Suspense
+              fallback={
+                <div className="absolute inset-0 flex items-center justify-center bg-[#F5F4EE]">
+                  <GridMatrixLoader size={4} label="Loading trip map" />
+                </div>
+              }
+            >
+              <ItineraryMap
+                day={activeDay}
+                selectedStopId={selectedStopId}
+                onSelectStop={selectStop}
+              />
+            </Suspense>
+            <div className="absolute left-4 top-4 z-20 rounded-full bg-white/95 px-3 py-2 shadow-md backdrop-blur">
+              <span className="font-label text-[11px] font-bold uppercase tracking-wider text-[#163300]">
+                Day {activeDay.day} · {activeDay.stops.length} stops
+              </span>
+            </div>
+          </main>
+        ) : (
+        <ChatPanel
+          composer={<MobileComposer onNavigate={onNavigate} />}
+        >
             <ThreadPrimitive.Viewport className="no-scrollbar flex-1 space-y-5 overflow-y-auto px-4 pb-40 pt-2">
               <div className="flex items-center justify-between gap-2 pb-4 pt-1">
                 <button
@@ -456,7 +649,11 @@ function ChatContent({
 
               <ThreadPrimitive.Messages>
                 {({ message }) =>
-                  message.role === 'user' ? <UserMessage /> : <AssistantMessage />
+                  message.role === 'user' ? (
+                    <UserMessage />
+                  ) : (
+                    <AssistantMessage onOpenItinerary={openItinerary} />
+                  )
                 }
               </ThreadPrimitive.Messages>
 
@@ -480,87 +677,42 @@ function ChatContent({
 
               <ChatError />
 
-              <AuiIf condition={(state) => !state.thread.isRunning}>
-                <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto py-1">
-                  {QUICK_PROMPTS.map((prompt) => (
-                    <ThreadPrimitive.Suggestion
-                      key={prompt}
-                      prompt={prompt}
-                      send
-                      className="shrink-0 cursor-pointer rounded-full border border-[#E5E5E5] bg-white px-3 py-1.5 font-headline text-xs font-semibold text-[#163300] transition-colors hover:border-[#9FE870] hover:bg-[#eaf9dc] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      + {prompt}
-                    </ThreadPrimitive.Suggestion>
-                  ))}
-                </div>
-              </AuiIf>
             </ThreadPrimitive.Viewport>
 
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-16">
-              <div className="mb-2 flex justify-center">
-                <ThreadPrimitive.ScrollToBottom
-                  aria-label="Scroll to the latest message"
-                  className="pointer-events-auto flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-[#E5E5E5] bg-white/95 text-[#163300] shadow-md backdrop-blur transition-transform active:scale-90 disabled:pointer-events-none disabled:opacity-0"
-                >
-                  <span className="material-symbols-outlined text-[18px]">
-                    arrow_downward
-                  </span>
-                </ThreadPrimitive.ScrollToBottom>
-              </div>
+        </ChatPanel>
+        )}
 
-              <ComposerPrimitive.Root className="pointer-events-auto mx-auto flex w-full items-center gap-2 rounded-full border border-[#E5E5E5] bg-white/95 p-2 shadow-[0_8px_30px_rgba(22,51,0,0.16)] backdrop-blur-md">
-                <button
-                  type="button"
-                  title="Trip settings"
-                  aria-label="Open trip settings"
-                  onClick={() => onNavigate('trip-settings')}
-                  className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#41493A] transition-colors hover:bg-[#F5F4EE] hover:text-[#163300] active:scale-90"
-                >
-                  <span className="material-symbols-outlined text-[20px]">settings</span>
-                </button>
-
-                <ComposerPrimitive.Input
-                  rows={1}
-                  submitMode="enter"
-                  placeholder="Ask TravelBuddy..."
-                  className="max-h-24 min-h-6 min-w-0 flex-1 resize-none bg-transparent px-1 py-0.5 font-body text-sm text-[#163300] outline-none placeholder:text-[#41493A]/60"
-                />
-
-                <AuiIf condition={(state) => state.thread.isRunning}>
-                  <GridMatrixLoader
-                    size={3}
-                    label="TravelBuddy is responding"
-                    className="mr-0.5"
-                  />
-                  <ComposerPrimitive.Cancel
-                    aria-label="Stop response"
-                    className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#163300] text-white transition-transform active:scale-90"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">stop</span>
-                  </ComposerPrimitive.Cancel>
-                </AuiIf>
-                <AuiIf condition={(state) => !state.thread.isRunning}>
-                  <ComposerPrimitive.Send
-                    aria-label="Send message"
-                    className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#9FE870] text-[#163300] shadow-xs transition-all hover:brightness-105 active:scale-90 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <span className="material-symbols-outlined text-[19px] font-bold">
-                      arrow_upward
-                    </span>
-                  </ComposerPrimitive.Send>
-                </AuiIf>
-              </ComposerPrimitive.Root>
-            </div>
-          </ThreadPrimitive.ViewportProvider>
-        </ThreadPrimitive.Root>
-
-        <BottomSheet
-          snap={sheetSnap}
-          onSnapChange={setSheetSnap}
-          label="Trip itinerary"
-        >
+        {isSheetVisible && itinerary ? (
+          <BottomSheet
+            snap={sheetSnap}
+            onSnapChange={setSheetSnap}
+            onDismiss={() => setIsSheetVisible(false)}
+            dismissible
+            label="Trip itinerary"
+          >
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex items-center justify-between gap-2 pb-3">
+            {sheetSnap === 'sticky' ? (
+              <button
+                type="button"
+                onClick={() => setSheetSnap('half')}
+                className="flex min-h-12 items-center justify-between gap-3 pb-2 text-left"
+              >
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#163300] text-[#9FE870]">
+                    <span className="material-symbols-outlined text-[16px]">route</span>
+                  </span>
+                  <span className="truncate font-headline text-sm font-bold text-[#163300]">
+                    {itinerary.title}
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-1 font-label text-[11px] font-bold text-[#163300]">
+                  Open
+                  <span className="material-symbols-outlined text-[17px]">expand_less</span>
+                </span>
+              </button>
+            ) : null}
+
+            {sheetSnap !== 'sticky' ? <div className="flex items-center justify-between gap-2 pb-3">
               <div className="flex min-w-0 items-center gap-2.5">
                 <span className="truncate font-headline text-lg font-bold tracking-tight text-[#163300]">
                   {itinerary?.title ?? `${destination} trip`}
@@ -575,19 +727,19 @@ function ChatContent({
               <button
                 type="button"
                 aria-label="Toggle itinerary expansion"
-                aria-expanded={!isItineraryCollapsed}
-                onClick={() => setIsItineraryCollapsed((value) => !value)}
+                aria-expanded={sheetSnap === 'full'}
+                onClick={() => setSheetSnap(sheetSnap === 'full' ? 'half' : 'full')}
                 className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[#E5E5E5] bg-[#F5F4EE] text-[#163300] transition-transform active:scale-95"
               >
                 <span
                   className={`material-symbols-outlined text-[20px] transition-transform duration-200 ${
-                    isItineraryCollapsed ? 'rotate-180' : 'rotate-0'
+                    sheetSnap === 'half' ? 'rotate-180' : 'rotate-0'
                   }`}
                 >
                   expand_less
                 </span>
               </button>
-            </div>
+            </div> : null}
 
             {itinerary ? (
               <div className="no-scrollbar flex shrink-0 items-center gap-2 overflow-x-auto pb-3.5">
@@ -613,10 +765,14 @@ function ChatContent({
               </div>
             ) : null}
 
-            {!isItineraryCollapsed ? (
+            {sheetSnap !== 'sticky' ? (
               <div className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto pb-28">
                 {activeDay ? (
-                  <ItineraryTimeline day={activeDay} />
+                  <ItineraryTimeline
+                    day={activeDay}
+                    selectedStopId={selectedStopId}
+                    onSelectStop={selectStop}
+                  />
                 ) : (
                   <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F5F4EE]">
@@ -636,7 +792,8 @@ function ChatContent({
               </div>
             ) : null}
           </div>
-        </BottomSheet>
+          </BottomSheet>
+        ) : null}
       </div>
     </>
   );

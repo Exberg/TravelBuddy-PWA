@@ -27,7 +27,6 @@ export interface AirbnbGuestInput {
   children?: number;
   infants?: number;
   pets?: number;
-  ignoreRobotsText?: boolean;
 }
 
 export interface AirbnbSearchInput extends AirbnbGuestInput {
@@ -590,7 +589,6 @@ export async function searchAirbnb(
 
   try {
     if (
-      !input.ignoreRobotsText &&
       !(await pathIsAllowed(`${url.pathname}${url.search}`, signal))
     ) {
       return failure(
@@ -629,7 +627,6 @@ export async function getAirbnbListingDetails(
 
   try {
     if (
-      !input.ignoreRobotsText &&
       !(await pathIsAllowed(`${url.pathname}${url.search}`, signal))
     ) {
       return failure(

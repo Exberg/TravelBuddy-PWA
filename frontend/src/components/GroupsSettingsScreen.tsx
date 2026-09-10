@@ -1,4 +1,5 @@
 import type { ScreenId } from '../types';
+import { useTripStore } from '../store/tripStore';
 import { BottomNav } from './BottomNav';
 
 interface GroupsSettingsScreenProps {
@@ -10,6 +11,8 @@ const PlusIcon = () => <span aria-hidden="true" className="text-2xl font-light l
 
 export function GroupsSettingsScreen({ screen, onNavigate }: GroupsSettingsScreenProps) {
   const isGroups = screen === 'groups';
+  const travelPreferences = useTripStore((state) => state.travelPreferences);
+  const setTravelPreferences = useTripStore((state) => state.setTravelPreferences);
 
   return (
     <div className="min-h-screen select-none bg-[#fbf9f4] pb-32 font-sans text-[#1b1c19]">
@@ -43,12 +46,24 @@ export function GroupsSettingsScreen({ screen, onNavigate }: GroupsSettingsScree
         ) : (
           <>
             <section className="rounded-[28px] border border-[#e4e2dd] bg-white p-6 shadow-sm">
-              <p className="text-[13px] font-semibold text-[#6B6F66]">Make it yours</p>
-              <h2 className="mt-2 text-[24px] font-extrabold tracking-tight text-[#163300]">Preferences</h2>
-              <p className="mt-2 text-[14px] leading-6 text-[#6B6F66]">Settings will be available here as TravelBuddy grows.</p>
+              <label
+                htmlFor="travel-preferences"
+                className="block text-[24px] font-extrabold tracking-tight text-[#163300]"
+              >
+                Your preferences
+              </label>
+              <textarea
+                id="travel-preferences"
+                value={travelPreferences}
+                onChange={(event) => setTravelPreferences(event.target.value)}
+                placeholder={'I like quiet neighborhoods and local food…\nI dislike packed tours and early mornings…'}
+                maxLength={1000}
+                rows={8}
+                className="mt-5 min-h-52 w-full resize-none select-text rounded-[22px] border border-[#d2d2d2] bg-[#f5f4ee] px-5 py-4 text-[16px] leading-7 text-[#1b1c19] outline-none transition placeholder:text-[#717A68] focus:border-[#163300] focus:bg-white focus:ring-4 focus:ring-[#9fe870]/35"
+              />
             </section>
             <section className="overflow-hidden rounded-[26px] border border-[#e4e2dd] bg-white shadow-sm">
-              {['Profile', 'Notifications', 'Travel preferences'].map((item, index) => (
+              {['Profile', 'Notifications'].map((item, index) => (
                 <button type="button" key={item} className={`flex w-full items-center justify-between px-5 py-5 text-left ${index > 0 ? 'border-t border-[#e4e2dd]' : ''}`}>
                   <span className="text-[15px] font-bold text-[#163300]">{item}</span>
                   <span className="text-xl text-[#6B6F66]" aria-hidden="true">›</span>

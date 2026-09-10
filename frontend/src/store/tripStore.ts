@@ -16,11 +16,14 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Itinerary, MustVisitPlace, PlaceItem } from '../types';
 import { tripRepository } from '../repositories/tripRepository';
+import { getDestinationCurrency, getFixedRate } from '../lib/currency';
 
 /** Kept in sync with backend/agent/model-selection.ts. */
 export type TravelBuddyModel = 'qwen-3.8-max' | 'gemini-3.8-flash';
 
 export interface TripPreferences {
+  /** Free-form likes and dislikes that should guide every trip. */
+  travelPreferences: string;
   destination: string;
   /** Resolved from Places Autocomplete when the traveler picks a suggestion. */
   destinationDescription: string | null;
@@ -30,6 +33,8 @@ export interface TripPreferences {
   /** The duration preset the traveler tapped, e.g. '1 Week' or 'Flexible'. */
   durationLabel: string;
   budgetMyr: number;
+  budgetCurrency: string;
+  destinationCurrency: string | null;
   travelers: number;
   mustVisitPlaces: MustVisitPlace[];
 }
@@ -51,7 +56,7 @@ export type JsonSafe =
  * - `destination` — always
  * - `startDate`, `endDate`, `nights`, `days` — when a date range is chosen
  * - `durationPreference` — instead of dates, when only a preset was tapped
- * - `budgetMyr`, `budgetCurrency`, `travelers` — always
+ * - `budgetMyr`, `budgetCurrency`, `destinationCurrency`, `travelers` — always
  * - `mustVisitPlaces` — `{ name, lat, lng }[]`, only when some are selected
  *
  * Unset answers are omitted rather than sent as null, so the agent assumes or
@@ -73,6 +78,7 @@ interface TripState extends TripPreferences, ItinerarySlice {
   model: TravelBuddyModel;
 
   setDestination: (destination: string, description?: string | null) => void;
+  setTravelPreferences: (travelPreferences: string) => void;
   setDates: (startDate: string | null, endDate: string | null) => void;
   setDurationLabel: (durationLabel: string) => void;
   setBudgetMyr: (budgetMyr: number) => void;
@@ -104,12 +110,15 @@ function createTripId() {
 function tripRecordFromState(state: TripState): TripRecord {
   return {
     tripId: state.tripId,
+    travelPreferences: state.travelPreferences,
     destination: state.destination,
     destinationDescription: state.destinationDescription,
     startDate: state.startDate,
     endDate: state.endDate,
     durationLabel: state.durationLabel,
     budgetMyr: state.budgetMyr,
+    budgetCurrency: state.budgetCurrency,
+    destinationCurrency: state.destinationCurrency,
     travelers: state.travelers,
     mustVisitPlaces: state.mustVisitPlaces,
     itinerary: state.itinerary,
@@ -120,16 +129,23 @@ function tripRecordFromState(state: TripState): TripRecord {
   };
 }
 
-function tripRecordToState(record: TripRecord) {
+function tripRecordToState(record: TripRecord, travelPreferences: string) {
   return {
     tripId: record.tripId,
     createdAt: record.createdAt,
+    // Preferences belong to the traveler, not an individual trip. Keep the
+    // current global value when moving between saved trips.
+    travelPreferences,
     destination: record.destination,
     destinationDescription: record.destinationDescription,
     startDate: record.startDate,
     endDate: record.endDate,
     durationLabel: record.durationLabel,
     budgetMyr: record.budgetMyr,
+    budgetCurrency: record.budgetCurrency ?? 'MYR',
+    destinationCurrency:
+      record.destinationCurrency ??
+      getDestinationCurrency(record.destinationDescription ?? record.destination),
     travelers: record.travelers,
     mustVisitPlaces: record.mustVisitPlaces,
     itinerary: record.itinerary,
@@ -165,6 +181,7 @@ export function isMeaningfulTrip(state: TripState) {
 }
 
 const DEFAULT_PREFERENCES: TripPreferences = {
+  travelPreferences: '',
   // A new trip starts blank; destinations must come from the traveler rather
   // than from the previous demo/default destination.
   destination: '',
@@ -173,6 +190,8 @@ const DEFAULT_PREFERENCES: TripPreferences = {
   endDate: null,
   durationLabel: '2 Weeks',
   budgetMyr: 4500,
+  budgetCurrency: 'MYR',
+  destinationCurrency: null,
   travelers: 1,
   mustVisitPlaces: [],
 };
@@ -190,8 +209,16 @@ export const useTripStore = create<TripState>()(
       lastChangeNote: null,
       model: 'qwen-3.8-max',
 
-      setDestination: (destination, description = null) =>
-        set({ destination, destinationDescription: description }),
+      setDestination: (destination, description = null) => {
+        const resolvedDestination = description ?? destination;
+        set({
+          destination,
+          destinationDescription: description,
+          destinationCurrency: getDestinationCurrency(resolvedDestination),
+        });
+      },
+
+      setTravelPreferences: (travelPreferences) => set({ travelPreferences }),
 
       setDates: (startDate, endDate) => set({ startDate, endDate }),
 
@@ -239,7 +266,7 @@ export const useTripStore = create<TripState>()(
         const saved = await tripRepository.get(current.tripId);
         if (saved) {
           set({
-            ...tripRecordToState(saved),
+            ...tripRecordToState(saved, current.travelPreferences),
             storageHydrated: true,
           });
           return;
@@ -258,7 +285,7 @@ export const useTripStore = create<TripState>()(
         if (!saved) return false;
 
         set({
-          ...tripRecordToState(saved),
+          ...tripRecordToState(saved, get().travelPreferences),
           storageHydrated: true,
         });
         return true;
@@ -271,6 +298,7 @@ export const useTripStore = create<TripState>()(
           }
           return {
             ...DEFAULT_PREFERENCES,
+            travelPreferences: state.travelPreferences,
             tripId: createTripId(),
             createdAt: new Date().toISOString(),
             storageHydrated: true,
@@ -306,7 +334,7 @@ export const useTripStore = create<TripState>()(
       name: 'travelbuddy:trip:v1',
       // Actions are recreated on load; only persist data. `version` lets a
       // future schema change invalidate stale saved trips.
-      version: 3,
+      version: 4,
       migrate: (persistedState) => {
         const state = persistedState as Partial<TripState>;
         return {
@@ -328,6 +356,7 @@ export const useTripStore = create<TripState>()(
         tripId: state.tripId,
         createdAt: state.createdAt,
         model: state.model,
+        travelPreferences: state.travelPreferences,
       }),
     },
   ),
@@ -360,11 +389,17 @@ export function nightsBetween(
  */
 export function toTripContext(preferences: TripPreferences): TripContext {
   const nights = nightsBetween(preferences.startDate, preferences.endDate);
+  const travelPreferences = preferences.travelPreferences.trim();
 
   return {
+    ...(travelPreferences ? { travelPreferences } : {}),
     destination: preferences.destinationDescription ?? preferences.destination,
     budgetMyr: preferences.budgetMyr,
-    budgetCurrency: 'MYR',
+    budgetCurrency: preferences.budgetCurrency,
+    destinationCurrency: preferences.destinationCurrency,
+    ...(preferences.destinationCurrency
+      ? { fixedConversionRate: getFixedRate(preferences.budgetCurrency, preferences.destinationCurrency) }
+      : {}),
     travelers: preferences.travelers,
     ...(preferences.startDate ? { startDate: preferences.startDate } : {}),
     ...(preferences.endDate ? { endDate: preferences.endDate } : {}),
@@ -390,12 +425,15 @@ export function toTripContext(preferences: TripPreferences): TripContext {
 /** Reads the preference slice out of the full store state. */
 export function selectTripPreferences(state: TripState): TripPreferences {
   return {
+    travelPreferences: state.travelPreferences,
     destination: state.destination,
     destinationDescription: state.destinationDescription,
     startDate: state.startDate,
     endDate: state.endDate,
     durationLabel: state.durationLabel,
     budgetMyr: state.budgetMyr,
+    budgetCurrency: state.budgetCurrency,
+    destinationCurrency: state.destinationCurrency,
     travelers: state.travelers,
     mustVisitPlaces: state.mustVisitPlaces,
   };

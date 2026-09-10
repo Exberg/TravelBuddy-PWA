@@ -39,12 +39,6 @@ export default defineTool({
     propertyType: z
       .enum(["entire_home", "private_room", "shared_room", "hotel_room"])
       .optional(),
-    ignoreRobotsText: z
-      .boolean()
-      .default(false)
-      .describe(
-        "Override Airbnb robots.txt for this request. Leave false unless the user explicitly asks to bypass it and accepts the site's terms.",
-      ),
   }),
   async execute(input, ctx) {
     return searchAirbnb(input, ctx.abortSignal);

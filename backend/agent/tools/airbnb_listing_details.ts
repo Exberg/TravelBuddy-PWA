@@ -22,12 +22,6 @@ export default defineTool({
     children: guestCountSchema.default(0),
     infants: guestCountSchema.default(0),
     pets: guestCountSchema.default(0),
-    ignoreRobotsText: z
-      .boolean()
-      .default(false)
-      .describe(
-        "Override Airbnb robots.txt for this request. Leave false unless the user explicitly asks to bypass it and accepts the site's terms.",
-      ),
   }),
   async execute(input, ctx) {
     return getAirbnbListingDetails(input, ctx.abortSignal);

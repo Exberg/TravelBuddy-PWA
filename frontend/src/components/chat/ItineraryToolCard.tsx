@@ -12,7 +12,20 @@ import { countStops, formatMyr, parseSaveItineraryResult } from '../../lib/itine
  * is still running it shows a grid matrix loader instead of a half-parsed
  * itinerary.
  */
-export function ItineraryToolCard({ status, result }: ToolCallMessagePartProps) {
+interface ItineraryToolCardProps extends ToolCallMessagePartProps {
+  onOpenItinerary?: () => void;
+}
+
+/**
+ * A persistent assistant-ui message artifact. It intentionally lives in the
+ * conversation instead of the sheet so it remains the manual re-entry point
+ * after the traveler dismisses the sheet completely.
+ */
+export function ItineraryToolCard({
+  status,
+  result,
+  onOpenItinerary,
+}: ItineraryToolCardProps) {
   const published = useMemo(() => parseSaveItineraryResult(result), [result]);
 
   if (status.type !== 'complete' || !published) {
@@ -47,7 +60,12 @@ export function ItineraryToolCard({ status, result }: ToolCallMessagePartProps) 
   const { itinerary, changeNote, revision } = published;
 
   return (
-    <section className="tb-rise rounded-2xl border border-[#9FE870]/50 bg-[#F5F4EE] p-4">
+    <button
+      type="button"
+      onClick={onOpenItinerary}
+      aria-label={`Open ${itinerary.title} itinerary`}
+      className="tb-rise block w-full cursor-pointer rounded-2xl border border-[#9FE870]/50 bg-[#F5F4EE] p-4 text-left transition-[transform,border-color,background-color] hover:border-[#9FE870] hover:bg-[#eaf9dc] active:scale-[0.985]"
+    >
       <div className="flex items-center gap-2">
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#9FE870]">
           <span className="material-symbols-outlined text-[13px] text-[#163300]">
@@ -97,9 +115,10 @@ export function ItineraryToolCard({ status, result }: ToolCallMessagePartProps) 
         </ul>
       ) : null}
 
-      <p className="mt-3 font-label text-[11px] font-semibold text-[#41493A]/80">
-        Open the trip sheet below to see every stop.
+      <p className="mt-3 flex items-center gap-1 font-label text-[11px] font-bold text-[#163300]">
+        Open itinerary
+        <span className="material-symbols-outlined text-[15px]">north_east</span>
       </p>
-    </section>
+    </button>
   );
 }

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <symbol id="place" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z"/></symbol>
+  <symbol id="location_on" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z"/></symbol>
+  <symbol id="museum" viewBox="0 0 24 24"><path fill="currentColor" d="m12 3 10 6v2H2V9l10-6ZM4 13h3v6h2v-6h6v6h2v-6h3v8H4v-8Zm-2 10v-2h20v2H2Z"/></symbol>
+  <symbol id="restaurant" viewBox="0 0 24 24"><path fill="currentColor" d="M11 9V3h2v6h-2Zm-4 0V3h2v6H7Zm8 0V3h2v6h-2ZM5 21V11h14v10h-2v-8H7v8H5Zm6-8h2v8h-2Z"/></symbol>
+  <symbol id="local_cafe" viewBox="0 0 24 24"><path fill="currentColor" d="M4 19h14v2H4v-2Zm0-2V5h14v12H4Zm16-9h1a2 2 0 0 1 0 4h-1V8Zm-2 2h1a1 1 0 0 0 0-2h-1v2Z"/></symbol>
+  <symbol id="directions_walk" viewBox="0 0 24 24"><path fill="currentColor" d="M13 5.5A2.5 2.5 0 1 0 13 0a2.5 2.5 0 0 0 0 5.5ZM9 23l2.1-6.2L9 14.7V10h2v3.2l2.2 1.7L16 23h-2.1l-2-5.6-1.1 3.4L9 23ZM7 10.5V7.8c0-.9.4-1.7 1.2-2.2l3.1-1.8.9 1.7-2.4 1.4-.8 3.6H7Z"/></symbol>
+  <symbol id="landscape" viewBox="0 0 24 24"><path fill="currentColor" d="m3 19 5.5-7 4 5 3-4L21 19H3Zm0 2h18v2H3v-2ZM8 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></symbol>
+  <symbol id="shopping_bag" viewBox="0 0 24 24"><path fill="currentColor" d="M6 7h12l1 15H5L6 7Zm3 0V5a3 3 0 0 1 6 0v2h-2V5a1 1 0 0 0-2 0v2H9Z"/></symbol>
+  <symbol id="nightlife" viewBox="0 0 24 24"><path fill="currentColor" d="M6 2h12v2h-5v6.2l4.2 9.8H6.8L11 10.2V4H6V2Zm4 16h4l-2-4.7-2 4.7Z"/></symbol>
+  <symbol id="hotel" viewBox="0 0 24 24"><path fill="currentColor" d="M4 5h2v14H4V5Zm3 6h10a3 3 0 0 1 3 3v5h-2v-3H7v3H5v-5a3 3 0 0 1 2-2Zm0-5h4a3 3 0 0 1 3 3H7V6Zm0 3h5a1 1 0 0 0-1-1H7v1Z"/></symbol>
+  <symbol id="directions_bus" viewBox="0 0 24 24"><path fill="currentColor" d="M4 16V5c0-2 4-3 8-3s8 1 8 3v11l-2 2v2h-2v-2H8v2H6v-2l-2-2Zm2-9h12V5c-1.2-.7-3.5-1-6-1s-4.8.3-6 1v2Zm0 7h12V9H6v5Zm2 3a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm8 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/></symbol>
+  <symbol id="directions_car" viewBox="0 0 24 24"><path fill="currentColor" d="m5 11 1.5-5h11L19 11v8h-2v2h-2v-2H9v2H7v-2H5v-8Zm3-3-1 3h10l-1-3H8Zm0 8a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm8 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/></symbol>
+  <symbol id="directions_transit" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2c-4 0-8 1-8 4v9c0 1.7 1.3 3 3 3l-1 2h2l1-2h6l1 2h2l-1-2c1.7 0 3-1.3 3-3V6c0-3-4-4-8-4Zm-5 5h10v4H7V7Zm2 8a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm6 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/></symbol>
+  <symbol id="directions_boat" viewBox="0 0 24 24"><path fill="currentColor" d="m3 17 9-3 9 3-2 4H5l-2-4Zm3-2V6h3V4h6v2h3v9l-6-2-6 2Z"/></symbol>
+  <symbol id="layers" viewBox="0 0 24 24"><path fill="currentColor" d="m12 2 10 5-10 5L2 7l10-5Zm0 12L3 9.5 2 11l10 5 10-5-1-1.5-9 4.5Zm0 5L3 14.5 2 16l10 5 10-5-1-1.5-9 4.5Z"/></symbol>
+  <symbol id="near_me" viewBox="0 0 24 24"><path fill="currentColor" d="m21 3-7.1 18-2.6-7.3L4 11.1 21 3Z"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><path fill="currentColor" d="m9.5 3a6.5 6.5 0 0 1 5.2 10.4L21 19.7 19.7 21l-6.3-6.3A6.5 6.5 0 1 1 9.5 3Zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z"/></symbol>
+  <symbol id="travel_explore" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 2a8 8 0 0 1 7.7 6H14l-2 2V4Zm-8 8a8 8 0 0 1 8-8v6l-2 2H4Zm8 8a8 8 0 0 1-7.7-6H10l2-2v8Zm2-2v-6l2-2h4a8 8 0 0 1-6 8Z"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path fill="currentColor" d="m9 16.2-3.5-3.5L4 14.2l5 5L20 8.2 18.5 6.7 9 16.2Z"/></symbol>
+  <symbol id="auto_awesome" viewBox="0 0 24 24"><path fill="currentColor" d="m19 9 1.2-2.8L23 5l-2.8-1.2L19 1l-1.2 2.8L15 5l2.8 1.2L19 9ZM9 22l1.7-5.3L16 15l-5.3-1.7L9 8l-1.7 5.3L2 15l5.3 1.7L9 22Z"/></symbol>
+  <symbol id="cancel" viewBox="0 0 24 24"><path fill="currentColor" d="m12 10.6 4.2-4.2 1.4 1.4-4.2 4.2 4.2 4.2-1.4 1.4-4.2-4.2-4.2 4.2-1.4-1.4 4.2-4.2-4.2-4.2 1.4-1.4 4.2 4.2Z"/></symbol>
+</svg>

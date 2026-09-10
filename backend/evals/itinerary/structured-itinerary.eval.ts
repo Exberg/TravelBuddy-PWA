@@ -87,6 +87,7 @@ export default defineEval({
     );
 
     t.calledTool("search_places").soft();
-    t.loadedSkill("itinerary-planning").soft();
+    t.calledTool("load_skill").soft();
+    t.loadedSkill("itinerary_planning").soft();
   },
 });

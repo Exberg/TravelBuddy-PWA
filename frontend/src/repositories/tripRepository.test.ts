@@ -17,6 +17,7 @@ class MemoryStorage {
 const trip = (overrides: Partial<TripRecord> = {}): TripRecord => ({
   tripId: 'trip-1',
   createdAt: '2026-09-09T10:00:00.000Z',
+  travelPreferences: '',
   destination: 'Penang',
   destinationDescription: 'George Town, Penang, Malaysia',
   startDate: null,

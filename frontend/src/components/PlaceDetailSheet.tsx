@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { toast } from 'sonner';
 import type { PlaceItem } from '../types';
 import { usePlaceDetails } from '../hooks/usePlaceDetails';
+import { PublicIcon } from './PublicIcon';
 
 interface PlaceDetailSheetProps {
   place: PlaceItem;
@@ -133,9 +134,7 @@ export const PlaceDetailSheet: React.FC<PlaceDetailSheetProps> = ({
           </div>
         ) : (
           <div className="flex h-[190px] w-full items-center justify-center rounded-2xl bg-[#EFEEE8]">
-            <span className="material-symbols-outlined text-[48px] text-[#41493A]/40">
-              {place.iconName}
-            </span>
+            <PublicIcon name={place.iconName} className="h-12 w-12 text-[#41493A]/40" />
           </div>
         )}
 
@@ -168,9 +167,7 @@ export const PlaceDetailSheet: React.FC<PlaceDetailSheetProps> = ({
         {/* Address */}
         {address && (
           <div className="mt-3 flex items-start gap-2">
-            <span className="material-symbols-outlined mt-0.5 text-[18px] text-[#41493A]">
-              location_on
-            </span>
+            <PublicIcon name="location_on" className="mt-0.5 h-[18px] w-[18px] shrink-0 text-[#41493A]" />
             <span className="font-body text-[14px] leading-relaxed text-[#41493A]">
               {address}
             </span>

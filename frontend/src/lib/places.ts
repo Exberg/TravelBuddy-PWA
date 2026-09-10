@@ -1,4 +1,5 @@
 import type { PlaceCategory, PlaceDetails, PlaceItem, PlaceReview } from '../types';
+import { publicIconName } from './icons';
 
 // Same-origin proxy target resolution, matching EveAssistantProvider's
 // VITE_EVE_URL handling: local dev proxies /places to the Eve dev server via
@@ -38,9 +39,9 @@ function toPlaceItem(place: PlacesSearchResponsePlace): PlaceItem {
     category: place.category,
     rating: place.rating,
     imageUrl: place.photoName ? photoUrl(place.photoName) : '',
-    iconName: place.iconName,
+    iconName: publicIconName(place.iconName),
     pinLabel: place.title,
-    pinIcon: place.iconName,
+    pinIcon: publicIconName(place.iconName),
     lat: place.lat,
     lng: place.lng,
   };
