@@ -153,4 +153,6 @@ export interface MustVisitPlace {
   category: PlaceCategory;
   lat: number;
   lng: number;
+  /** Number of collaborators who voted for this shared pick. */
+  voteCount?: number;
 }

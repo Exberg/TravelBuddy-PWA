@@ -3,8 +3,11 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from 'react';
 import { toast } from 'sonner';
@@ -347,12 +350,42 @@ function ChatPanel({ children, composer }: ChatPanelProps) {
 
 interface MobileComposerProps {
   onNavigate: (screen: ScreenId) => void;
+  onClearanceChange: (clearance: number) => void;
 }
 
 /** Mobile-first assistant-ui composer with TravelBuddy's persistent settings action. */
-function MobileComposer({ onNavigate }: MobileComposerProps) {
+function MobileComposer({ onNavigate, onClearanceChange }: MobileComposerProps) {
+  const dockRef = useRef<HTMLDivElement>(null);
+  const controlsRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const dock = dockRef.current;
+    const controls = controlsRef.current;
+    if (!dock || !controls) return;
+
+    const measureClearance = () => {
+      const dockBounds = dock.getBoundingClientRect();
+      const controlsBounds = controls.getBoundingClientRect();
+      onClearanceChange(Math.ceil(dockBounds.bottom - controlsBounds.top));
+    };
+
+    measureClearance();
+    const observer = new ResizeObserver(measureClearance);
+    observer.observe(dock);
+    observer.observe(controls);
+    window.addEventListener('resize', measureClearance);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measureClearance);
+    };
+  }, [onClearanceChange]);
+
   return (
-    <div className="chat-composer-dock pointer-events-none absolute inset-x-0 bottom-0 z-40 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-16">
+    <div
+      ref={dockRef}
+      className="chat-composer-dock pointer-events-none absolute inset-x-0 bottom-0 z-40 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-16"
+    >
       <div aria-hidden="true" className="chat-composer-fade" />
 
       <div className="relative z-10">
@@ -367,86 +400,88 @@ function MobileComposer({ onNavigate }: MobileComposerProps) {
           </ThreadPrimitive.ScrollToBottom>
         </div>
 
-        <AuiIf condition={(state) => !state.thread.isRunning}>
-          <div className="no-scrollbar mb-2 flex items-center gap-1.5 overflow-x-auto py-1">
-            <ThreadPrimitive.Suggestions>
-              {({ suggestion }) => (
-                <ThreadPrimitive.Suggestion
-                  prompt={suggestion.prompt}
-                  send
-                  className="pointer-events-auto shrink-0 cursor-pointer rounded-full border border-[#E5E5E5] bg-white px-3 py-1.5 font-headline text-xs font-semibold text-[#163300] transition-colors hover:border-[#9FE870] hover:bg-[#eaf9dc] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {suggestion.title ?? suggestion.label ?? suggestion.prompt}
-                </ThreadPrimitive.Suggestion>
-              )}
-            </ThreadPrimitive.Suggestions>
-          </div>
-        </AuiIf>
-
-        <ComposerPrimitive.Root className="pointer-events-auto mx-auto flex w-full items-center gap-2">
-          <button
-            type="button"
-            title="Trip settings"
-            aria-label="Open trip settings"
-            onClick={() => onNavigate('trip-settings')}
-            className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#F5F4EE] text-[#41493A] transition-colors hover:bg-[#eaf9dc] hover:text-[#163300] active:scale-90"
-          >
-            <span className="material-symbols-outlined text-[20px]">settings</span>
-          </button>
-
-          <div className="flex min-h-10 min-w-0 flex-1 items-center rounded-full border border-[#E5E5E5] bg-white px-3">
-            <ComposerPrimitive.Input
-              rows={1}
-              submitMode="enter"
-              placeholder="Ask TravelBuddy..."
-              className="max-h-24 min-h-6 min-w-0 flex-1 resize-none bg-transparent py-2 font-body text-sm text-[#163300] outline-none placeholder:text-[#41493A]/60"
-            />
-
-            <AuiIf condition={(state) => state.thread.isRunning}>
-              <GridMatrixLoader
-                size={3}
-                label="TravelBuddy is responding"
-                className="mr-0.5"
-              />
-              <ComposerPrimitive.Cancel
-                aria-label="Stop response"
-                className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#163300] text-white transition-transform active:scale-90"
-              >
-                <span className="material-symbols-outlined text-[17px]">stop</span>
-              </ComposerPrimitive.Cancel>
-            </AuiIf>
-            <AuiIf condition={(state) => !state.thread.isRunning}>
-              <AuiIf condition={(state) => state.composer.dictation != null}>
-                <ComposerPrimitive.StopDictation
-                  aria-label="Stop dictation"
-                  className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#163300] transition-colors hover:bg-[#eaf9dc] active:scale-90"
-                >
-                  <span className="material-symbols-outlined text-[19px]">mic</span>
-                </ComposerPrimitive.StopDictation>
-              </AuiIf>
-              <AuiIf condition={(state) => state.composer.dictation == null}>
-                <ComposerPrimitive.Dictate
-                  aria-label="Use voice input"
-                  title="Use voice input"
-                  className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#41493A] transition-colors hover:bg-[#eaf9dc] hover:text-[#163300] active:scale-90 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <span className="material-symbols-outlined text-[19px]">mic</span>
-                </ComposerPrimitive.Dictate>
-              </AuiIf>
-            </AuiIf>
-          </div>
-
+        <div ref={controlsRef}>
           <AuiIf condition={(state) => !state.thread.isRunning}>
-            <ComposerPrimitive.Send
-              aria-label="Send message"
-              className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#9FE870] text-[#163300] shadow-xs transition-all hover:brightness-105 active:scale-90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <span className="material-symbols-outlined text-[19px] font-bold">
-                arrow_upward
-              </span>
-            </ComposerPrimitive.Send>
+            <div className="no-scrollbar mb-2 flex items-center gap-1.5 overflow-x-auto py-1">
+              <ThreadPrimitive.Suggestions>
+                {({ suggestion }) => (
+                  <ThreadPrimitive.Suggestion
+                    prompt={suggestion.prompt}
+                    send
+                    className="pointer-events-auto shrink-0 cursor-pointer rounded-full border border-[#E5E5E5] bg-white px-3 py-1.5 font-headline text-xs font-semibold text-[#163300] transition-colors hover:border-[#9FE870] hover:bg-[#eaf9dc] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {suggestion.title ?? suggestion.label ?? suggestion.prompt}
+                  </ThreadPrimitive.Suggestion>
+                )}
+              </ThreadPrimitive.Suggestions>
+            </div>
           </AuiIf>
-        </ComposerPrimitive.Root>
+
+          <ComposerPrimitive.Root className="pointer-events-auto mx-auto flex w-full items-center gap-2">
+            <button
+              type="button"
+              title="Trip settings"
+              aria-label="Open trip settings"
+              onClick={() => onNavigate('trip-settings')}
+              className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#F5F4EE] text-[#41493A] transition-colors hover:bg-[#eaf9dc] hover:text-[#163300] active:scale-90"
+            >
+              <span className="material-symbols-outlined text-[20px]">settings</span>
+            </button>
+
+            <div className="flex min-h-10 min-w-0 flex-1 items-center rounded-full border border-[#E5E5E5] bg-white px-3">
+              <ComposerPrimitive.Input
+                rows={1}
+                submitMode="enter"
+                placeholder="Ask TravelBuddy..."
+                className="max-h-24 min-h-6 min-w-0 flex-1 resize-none bg-transparent py-2 font-body text-sm text-[#163300] outline-none placeholder:text-[#41493A]/60"
+              />
+
+              <AuiIf condition={(state) => state.thread.isRunning}>
+                <GridMatrixLoader
+                  size={3}
+                  label="TravelBuddy is responding"
+                  className="mr-0.5"
+                />
+                <ComposerPrimitive.Cancel
+                  aria-label="Stop response"
+                  className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#163300] text-white transition-transform active:scale-90"
+                >
+                  <span className="material-symbols-outlined text-[17px]">stop</span>
+                </ComposerPrimitive.Cancel>
+              </AuiIf>
+              <AuiIf condition={(state) => !state.thread.isRunning}>
+                <AuiIf condition={(state) => state.composer.dictation != null}>
+                  <ComposerPrimitive.StopDictation
+                    aria-label="Stop dictation"
+                    className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#163300] transition-colors hover:bg-[#eaf9dc] active:scale-90"
+                  >
+                    <span className="material-symbols-outlined text-[19px]">mic</span>
+                  </ComposerPrimitive.StopDictation>
+                </AuiIf>
+                <AuiIf condition={(state) => state.composer.dictation == null}>
+                  <ComposerPrimitive.Dictate
+                    aria-label="Use voice input"
+                    title="Use voice input"
+                    className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#41493A] transition-colors hover:bg-[#eaf9dc] hover:text-[#163300] active:scale-90 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <span className="material-symbols-outlined text-[19px]">mic</span>
+                  </ComposerPrimitive.Dictate>
+                </AuiIf>
+              </AuiIf>
+            </div>
+
+            <AuiIf condition={(state) => !state.thread.isRunning}>
+              <ComposerPrimitive.Send
+                aria-label="Send message"
+                className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#9FE870] text-[#163300] shadow-xs transition-all hover:brightness-105 active:scale-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[19px] font-bold">
+                  arrow_upward
+                </span>
+              </ComposerPrimitive.Send>
+            </AuiIf>
+          </ComposerPrimitive.Root>
+        </div>
       </div>
     </div>
   );
@@ -467,6 +502,7 @@ function ChatContent({
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isItineraryMapOpen, setIsItineraryMapOpen] = useState(false);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  const [composerClearance, setComposerClearance] = useState(128);
 
   // The timeline is driven entirely by what the agent published through
   // save_itinerary; there is no mock schedule behind it any more.
@@ -576,9 +612,8 @@ function ChatContent({
                         onSelectChat(chat.id);
                         setIsHistoryOpen(false);
                       }}
-                      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors ${
-                        isActive ? 'bg-[#eaf9dc]' : 'hover:bg-[#F5F4EE]'
-                      }`}
+                      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors ${isActive ? 'bg-[#eaf9dc]' : 'hover:bg-[#F5F4EE]'
+                        }`}
                     >
                       <span className="material-symbols-outlined text-[20px] text-[#41493A]">
                         chat_bubble
@@ -625,9 +660,14 @@ function ChatContent({
             </div>
           </main>
         ) : (
-        <ChatPanel
-          composer={<MobileComposer onNavigate={onNavigate} />}
-        >
+          <ChatPanel
+            composer={(
+              <MobileComposer
+                onNavigate={onNavigate}
+                onClearanceChange={setComposerClearance}
+              />
+            )}
+          >
             <ThreadPrimitive.Viewport className="no-scrollbar flex-1 space-y-5 overflow-y-auto px-4 pb-40 pt-2">
               <div className="flex items-center justify-between gap-2 pb-4 pt-1">
                 <button
@@ -697,7 +737,7 @@ function ChatContent({
 
             </ThreadPrimitive.Viewport>
 
-        </ChatPanel>
+          </ChatPanel>
         )}
 
         {isSheetVisible && itinerary ? (
@@ -708,108 +748,113 @@ function ChatContent({
             dismissible
             label="Trip itinerary"
           >
-          <div className="flex min-h-0 flex-1 flex-col">
-            {sheetSnap === 'sticky' ? (
-              <button
-                type="button"
-                onClick={() => setSheetSnap('half')}
-                className="flex min-h-12 items-center justify-between gap-3 pb-2 text-left"
-              >
-                <span className="flex min-w-0 items-center gap-2.5">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#163300] text-[#9FE870]">
-                    <span className="material-symbols-outlined text-[16px]">route</span>
-                  </span>
-                  <span className="truncate font-headline text-sm font-bold text-[#163300]">
-                    {itinerary.title}
-                  </span>
-                </span>
-                <span className="flex shrink-0 items-center gap-1 font-label text-[11px] font-bold text-[#163300]">
-                  Open
-                  <span className="material-symbols-outlined text-[17px]">expand_less</span>
-                </span>
-              </button>
-            ) : null}
-
-            {sheetSnap !== 'sticky' ? <div className="flex items-center justify-between gap-2 pb-3">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <span className="truncate font-headline text-lg font-bold tracking-tight text-[#163300]">
-                  {itinerary?.title ?? `${destination} trip`}
-                </span>
-                {itinerary ? (
-                  <span className="shrink-0 rounded-full bg-[#eaf9dc] px-2.5 py-0.5 font-label text-xs font-semibold text-[#163300]">
-                    {itinerary.days.length}{' '}
-                    {itinerary.days.length === 1 ? 'Day' : 'Days'}
-                  </span>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                aria-label="Toggle itinerary expansion"
-                aria-expanded={sheetSnap === 'full'}
-                onClick={() => setSheetSnap(sheetSnap === 'full' ? 'half' : 'full')}
-                className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[#E5E5E5] bg-[#F5F4EE] text-[#163300] transition-transform active:scale-95"
-              >
-                <span
-                  className={`material-symbols-outlined text-[20px] transition-transform duration-200 ${
-                    sheetSnap === 'half' ? 'rotate-180' : 'rotate-0'
-                  }`}
+            <div className="flex min-h-0 flex-1 flex-col">
+              {sheetSnap === 'sticky' ? (
+                <button
+                  type="button"
+                  onClick={() => setSheetSnap('half')}
+                  className="flex min-h-12 items-center justify-between gap-3 pb-2 text-left"
                 >
-                  expand_less
-                </span>
-              </button>
-            </div> : null}
-
-            {itinerary ? (
-              <div className="no-scrollbar flex shrink-0 items-center gap-2 overflow-x-auto pb-3.5">
-                {itinerary.days.map((day) => (
-                  <button
-                    key={day.day}
-                    type="button"
-                    onClick={() => setActiveDayNumber(day.day)}
-                    className={`shrink-0 cursor-pointer rounded-full px-4 py-1.5 font-label text-xs font-semibold tracking-wide transition-colors ${
-                      activeDay?.day === day.day
-                        ? 'bg-[#163300] text-white shadow-xs'
-                        : 'border border-[#E5E5E5] bg-[#F5F4EE] text-[#41493A] hover:text-[#163300]'
-                    }`}
-                  >
-                    Day {day.day}
-                  </button>
-                ))}
-                {totalCost !== null ? (
-                  <span className="ml-auto shrink-0 rounded-full bg-[#eaf9dc] px-2.5 py-1 font-label text-[11px] font-bold tabular-nums text-[#163300]">
-                    ~{formatMyr(totalCost)}
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#163300] text-[#9FE870]">
+                      <span className="material-symbols-outlined text-[16px]">route</span>
+                    </span>
+                    <span className="truncate font-headline text-sm font-bold text-[#163300]">
+                      {itinerary.title}
+                    </span>
                   </span>
-                ) : null}
-              </div>
-            ) : null}
+                  <span className="flex shrink-0 items-center gap-1 font-label text-[11px] font-bold text-[#163300]">
+                    Open
+                    <span className="material-symbols-outlined text-[17px]">expand_less</span>
+                  </span>
+                </button>
+              ) : null}
 
-            {sheetSnap !== 'sticky' ? (
-              <div className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto pb-28">
-                {activeDay ? (
-                  <ItineraryTimeline
-                    day={activeDay}
-                    selectedStopId={selectedStopId}
-                    onSelectStop={selectStop}
-                  />
-                ) : (
-                  <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F5F4EE]">
-                      <span className="material-symbols-outlined text-[24px] text-[#41493A]">
-                        event_note
-                      </span>
+              {sheetSnap !== 'sticky' ? <div className="flex items-center justify-between gap-2 pb-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="truncate font-headline text-lg font-bold tracking-tight text-[#163300]">
+                    {itinerary?.title ?? `${destination} trip`}
+                  </span>
+                  {itinerary ? (
+                    <span className="shrink-0 rounded-full bg-[#eaf9dc] px-2.5 py-0.5 font-label text-xs font-semibold text-[#163300]">
+                      {itinerary.days.length}{' '}
+                      {itinerary.days.length === 1 ? 'Day' : 'Days'}
+                    </span>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  aria-label="Toggle itinerary expansion"
+                  aria-expanded={sheetSnap === 'full'}
+                  onClick={() => setSheetSnap(sheetSnap === 'full' ? 'half' : 'full')}
+                  className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[#E5E5E5] bg-[#F5F4EE] text-[#163300] transition-transform active:scale-95"
+                >
+                  <span
+                    className={`material-symbols-outlined text-[20px] transition-transform duration-200 ${sheetSnap === 'half' ? 'rotate-180' : 'rotate-0'
+                      }`}
+                  >
+                    expand_less
+                  </span>
+                </button>
+              </div> : null}
+
+              {itinerary ? (
+                <div className="no-scrollbar flex shrink-0 items-center gap-2 overflow-x-auto pb-3.5">
+                  {itinerary.days.map((day) => (
+                    <button
+                      key={day.day}
+                      type="button"
+                      onClick={() => setActiveDayNumber(day.day)}
+                      className={`shrink-0 cursor-pointer rounded-full px-4 py-1.5 font-label text-xs font-semibold tracking-wide transition-colors ${activeDay?.day === day.day
+                          ? 'bg-[#163300] text-white shadow-xs'
+                          : 'border border-[#E5E5E5] bg-[#F5F4EE] text-[#41493A] hover:text-[#163300]'
+                        }`}
+                    >
+                      Day {day.day}
+                    </button>
+                  ))}
+                  {totalCost !== null ? (
+                    <span className="ml-auto shrink-0 rounded-full bg-[#eaf9dc] px-2.5 py-1 font-label text-[11px] font-bold tabular-nums text-[#163300]">
+                      ~{formatMyr(totalCost)}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {sheetSnap !== 'sticky' ? (
+                <div
+                  className="bottom-sheet-scroll-content bottom-sheet-scroll-content--chat no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto"
+                  style={{
+                    '--chat-composer-clearance': isItineraryMapOpen
+                      ? '0px'
+                      : `${composerClearance}px`,
+                  } as CSSProperties}
+                >
+                  {activeDay ? (
+                    <ItineraryTimeline
+                      day={activeDay}
+                      selectedStopId={selectedStopId}
+                      onSelectStop={selectStop}
+                    />
+                  ) : (
+                    <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F5F4EE]">
+                        <span className="material-symbols-outlined text-[24px] text-[#41493A]">
+                          event_note
+                        </span>
+                      </div>
+                      <p className="font-headline text-[15px] font-bold text-[#163300]">
+                        No itinerary yet
+                      </p>
+                      <p className="font-body text-[13px] leading-relaxed text-[#41493A]">
+                        Ask TravelBuddy to build your {destination} itinerary and
+                        it will appear here, day by day.
+                      </p>
                     </div>
-                    <p className="font-headline text-[15px] font-bold text-[#163300]">
-                      No itinerary yet
-                    </p>
-                    <p className="font-body text-[13px] leading-relaxed text-[#41493A]">
-                      Ask TravelBuddy to build your {destination} itinerary and
-                      it will appear here, day by day.
-                    </p>
-                  </div>
-                )}
-              </div>
-            ) : null}
-          </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
           </BottomSheet>
         ) : null}
       </div>

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { LocalConversationRepository } from './chatHistory';
+import { MOCK_COLLABORATIVE_TRIP_ID } from '../data/mockCollaborativeTrip';
 
 class MemoryStorage {
   private values = new Map<string, string>();
@@ -87,5 +88,49 @@ describe('LocalConversationRepository', () => {
 
     expect(history.chats[0]?.events).toHaveLength(1);
     expect(history.chats[0]?.resumeOnMount).toBe(false);
+  });
+
+  test('replaces an Austria conversation previously attached to the Penang demo', async () => {
+    storage.setItem(
+      'travelbuddy:eve-chats:v3',
+      JSON.stringify({
+        version: 3,
+        activeChatId: 'contaminated-demo-chat',
+        chats: [
+          {
+            id: 'contaminated-demo-chat',
+            tripId: MOCK_COLLABORATIVE_TRIP_ID,
+            title: 'Austria trip',
+            createdAt: '2026-09-09T10:00:00.000Z',
+            updatedAt: '2026-09-09T11:00:00.000Z',
+            events: [{ type: 'message.received', data: { message: 'Austria' } }],
+            session: { sessionId: 'wrun_austria', streamIndex: 4 },
+            resumeOnMount: false,
+          },
+          {
+            id: 'real-trip-chat',
+            tripId: 'real-trip',
+            title: 'Tokyo trip',
+            createdAt: '2026-09-08T10:00:00.000Z',
+            updatedAt: '2026-09-08T11:00:00.000Z',
+            events: [],
+            resumeOnMount: false,
+          },
+        ],
+      }),
+    );
+
+    const history = await new LocalConversationRepository().load(
+      MOCK_COLLABORATIVE_TRIP_ID,
+      'Penang',
+    );
+    const demoChat = history.chats.find(
+      (chat) => chat.tripId === MOCK_COLLABORATIVE_TRIP_ID,
+    );
+
+    expect(demoChat?.title).toBe('Penang trip');
+    expect(demoChat?.events).toEqual([]);
+    expect(demoChat?.session).toBeUndefined();
+    expect(history.chats.some((chat) => chat.id === 'real-trip-chat')).toBe(true);
   });
 });

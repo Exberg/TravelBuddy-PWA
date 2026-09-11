@@ -294,7 +294,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ onNavigate }) => {
 
           {/* Place List Cards — scrolls within the sheet, clears the floating CTA */}
           <div
-            className="flex flex-col gap-2.5 flex-1 min-h-0 overflow-y-auto no-scrollbar pb-28"
+            className="bottom-sheet-scroll-content flex flex-col gap-2.5 flex-1 min-h-0 overflow-y-auto no-scrollbar"
               onScroll={handleSheetScroll}
               id="places-container"
           >

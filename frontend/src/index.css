@@ -17,7 +17,15 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  h1, h2, h3, h4, h5, h6, .font-headline, .font-display, .font-label {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  .font-headline,
+  .font-display,
+  .font-label {
     font-family: var(--font-headline);
   }
 }
@@ -25,6 +33,7 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -39,6 +48,21 @@
   overscroll-behavior-y: contain;
 }
 
+/* Keep the final sheet items above fixed composer/CTA docks. The extra space
+   is part of the scrollable content so users can always bring the last card
+   fully into view instead of leaving it underneath a floating control. */
+.bottom-sheet-scroll-content {
+  padding-bottom: calc(10rem + env(safe-area-inset-bottom, 0px));
+  scroll-padding-bottom: calc(10rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Keep the itinerary's last card above the composer's measured visible controls.
+   The 1rem buffer preserves the calm mobile spacing used throughout the app. */
+.bottom-sheet-scroll-content--chat {
+  padding-bottom: calc(var(--chat-composer-clearance, 8rem) + 1rem);
+  scroll-padding-bottom: calc(var(--chat-composer-clearance, 8rem) + 1rem);
+}
+
 .safe-bottom-padding {
   padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
 }
@@ -50,13 +74,11 @@
   inset: auto 0 0;
   height: 11rem;
   pointer-events: none;
-  background: linear-gradient(
-    to top,
-    rgba(251, 249, 244, 0.98) 0%,
-    rgba(251, 249, 244, 0.9) 38%,
-    rgba(251, 249, 244, 0.48) 68%,
-    rgba(251, 249, 244, 0) 100%
-  );
+  background: linear-gradient(to top,
+      rgba(251, 249, 244, 0.98) 0%,
+      rgba(251, 249, 244, 0.9) 38%,
+      rgba(251, 249, 244, 0.48) 68%,
+      rgba(251, 249, 244, 0) 100%);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   -webkit-mask-image: linear-gradient(to top, black 0 58%, transparent 100%);
@@ -75,11 +97,13 @@
 /* Grid matrix loader: cells pulse on a diagonal delay while tw-shimmer sweeps
    a highlight across the whole grid. */
 @keyframes tb-matrix-pulse {
+
   0%,
   100% {
     opacity: 0.2;
     transform: scale(0.8);
   }
+
   45% {
     opacity: 1;
     transform: scale(1);
@@ -96,6 +120,7 @@
     opacity: 0;
     transform: translateY(6px);
   }
+
   to {
     opacity: 1;
     transform: none;
@@ -107,6 +132,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .tb-matrix-cell,
   .tb-rise {
     animation: none;
@@ -117,11 +143,11 @@
   }
 }
 
-.travelbuddy-markdown > :first-child {
+.travelbuddy-markdown> :first-child {
   margin-top: 0;
 }
 
-.travelbuddy-markdown > :last-child {
+.travelbuddy-markdown> :last-child {
   margin-bottom: 0;
 }
 
@@ -147,7 +173,7 @@
   list-style: decimal;
 }
 
-.travelbuddy-markdown li + li {
+.travelbuddy-markdown li+li {
   margin-top: 0.3rem;
 }
 
@@ -192,7 +218,7 @@
   font-size: 0.75rem;
 }
 
-.travelbuddy-markdown :not(pre) > code {
+.travelbuddy-markdown :not(pre)>code {
   border-radius: 0.35rem;
   background: #F5F4EE;
   padding: 0.1rem 0.3rem;

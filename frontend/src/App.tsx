@@ -11,6 +11,10 @@ import { QuickNavigator } from './components/QuickNavigator';
 import { SettingsScreen } from './components/SettingsScreen';
 import { TripSettingsScreen } from './components/TripSettingsScreen';
 import { useTripStore } from './store/tripStore';
+import {
+  MOCK_COLLABORATIVE_TRIP,
+  MOCK_COLLABORATIVE_TRIP_ID,
+} from './data/mockCollaborativeTrip';
 
 const ChatScreen = lazy(async () => {
   const module = await import('./components/ChatScreen');
@@ -108,9 +112,10 @@ function ScreenView({ screen }: ScreenViewProps) {
   );
 }
 
-function TripChatRoute() {
+function SharedTripRoute({ screen }: { screen: 'who' | 'chat' }) {
   const { tripId } = useParams<{ tripId: string }>();
   const selectTrip = useTripStore((state) => state.selectTrip);
+  const activateTrip = useTripStore((state) => state.activateTrip);
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing'>('loading');
 
   useEffect(() => {
@@ -124,8 +129,18 @@ function TripChatRoute() {
       }
 
       try {
+        // The built-in collaboration demo is a static app asset. Loading it
+        // directly makes copied links independent of browser persistence.
+        if (tripId === MOCK_COLLABORATIVE_TRIP_ID) {
+          activateTrip(MOCK_COLLABORATIVE_TRIP);
+          if (!cancelled) setStatus('ready');
+          return;
+        }
         const selected = await selectTrip(tripId);
-        if (!cancelled) setStatus(selected ? 'ready' : 'missing');
+        // Home activates the exact record it rendered before navigation. Keep
+        // that valid snapshot if storage changed between the click and route.
+        const isAlreadyActive = useTripStore.getState().tripId === tripId;
+        if (!cancelled) setStatus(selected || isAlreadyActive ? 'ready' : 'missing');
       } catch {
         if (!cancelled) setStatus('missing');
       }
@@ -135,7 +150,7 @@ function TripChatRoute() {
     return () => {
       cancelled = true;
     };
-  }, [selectTrip, tripId]);
+  }, [activateTrip, selectTrip, tripId]);
 
   if (status === 'loading') {
     return (
@@ -153,6 +168,28 @@ function TripChatRoute() {
         <Link to="/" className="rounded-full bg-[#9FE870] px-5 py-2.5 text-sm font-bold text-[#163300] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#163300]">
           Back to home
         </Link>
+      </div>
+    );
+  }
+
+  return <ScreenView screen={screen} />;
+}
+
+function MockCollaborativeTripRoute() {
+  const activateTrip = useTripStore((state) => state.activateTrip);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    // Route entry is the source of truth, so the demo cannot inherit whichever
+    // trip happened to be active when its card was pressed.
+    activateTrip(MOCK_COLLABORATIVE_TRIP);
+    setReady(true);
+  }, [activateTrip]);
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-screen w-full max-w-[430px] items-center justify-center bg-[#FBF9F4] font-label text-sm text-[#41493A]">
+        Opening the Penang crew trip…
       </div>
     );
   }
@@ -189,7 +226,12 @@ export default function App() {
           <Route path="/onboarding/who" element={<ScreenView screen="who" />} />
           <Route path="/map" element={<ScreenView screen="map" />} />
           <Route path="/chat" element={<ScreenView screen="chat" />} />
-          <Route path="/trips/:tripId/chat" element={<TripChatRoute />} />
+          <Route path="/trips/:tripId/chat" element={<SharedTripRoute screen="chat" />} />
+          {/* The prototype share link returns collaborators to onboarding so
+              they can review the shared budget and traveler preferences before
+              continuing to must-haves and the editable itinerary. */}
+          <Route path="/trips/:tripId/onboarding/who" element={<SharedTripRoute screen="who" />} />
+          <Route path="/demo/penang" element={<MockCollaborativeTripRoute />} />
           <Route path="/groups" element={<ScreenView screen="groups" />} />
           <Route path="/settings" element={<ScreenView screen="settings" />} />
           <Route path="/trip-settings" element={<ScreenView screen="trip-settings" />} />

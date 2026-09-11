@@ -63,7 +63,7 @@ export const WhenScreen: React.FC<WhenScreenProps> = ({ onNavigate }) => {
     () => fromIsoDate(savedStart) ?? startOfToday(),
   );
   const [endDate, setEndDate] = useState<Date | null>(
-    () => fromIsoDate(savedEnd) ?? addDays(startOfToday(), 14),
+    () => fromIsoDate(savedEnd) ?? addDays(startOfToday(), 7),
   );
   // The initial departure is already populated, so the first calendar click can
   // choose a return date (including one in a following month). After a return

@@ -13,8 +13,13 @@ const HomeIcon = ({ className = '' }: IconProps) => (
   <svg className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
 );
 
-const AnalyticsIcon = ({ className = '' }: IconProps) => (
-  <svg className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><line x1="18" x2="18" y1="20" y2="10" /><line x1="12" x2="12" y1="20" y2="4" /><line x1="6" x2="6" y1="20" y2="14" /></svg>
+const GroupIcon = ({ className = '' }: IconProps) => (
+  <svg className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="9" cy="8" r="3" />
+    <path d="M3 20a6 6 0 0 1 12 0" />
+    <path d="M16 5.5a3 3 0 0 1 0 5.8" />
+    <path d="M18 14a6 6 0 0 1 3 5.2" />
+  </svg>
 );
 
 const SettingsIcon = ({ className = '' }: IconProps) => (
@@ -37,7 +42,7 @@ export function BottomNav({ currentScreen, onNavigate, onCreateTrip }: BottomNav
       <nav className="flex w-full items-center border-t border-[#e4e2dd] bg-white/95 px-6 pb-8 pt-3 shadow-lg backdrop-blur" aria-label="Primary navigation">
         <div className="flex w-3/4 items-center justify-between pr-4">
           <NavItem active={currentScreen === 'home'} icon={<HomeIcon className="h-6 w-6" />} label="Home" onClick={() => onNavigate('home')} />
-          <NavItem active={currentScreen === 'groups'} icon={<AnalyticsIcon className="h-6 w-6" />} label="Groups" onClick={() => onNavigate('groups')} />
+          <NavItem active={currentScreen === 'groups'} icon={<GroupIcon className="h-6 w-6" />} label="Groups" onClick={() => onNavigate('groups')} />
           <NavItem active={currentScreen === 'settings'} icon={<SettingsIcon className="h-6 w-6" />} label="Settings" onClick={() => onNavigate('settings')} />
         </div>
       </nav>

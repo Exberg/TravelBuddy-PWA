@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
+import { Share2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { ScreenHeader } from './ScreenHeader';
 import { ScreenId } from '../types';
 import { useTripStore } from '../store/tripStore';
+import { MOCK_COLLABORATIVE_TRIP_ID } from '../data/mockCollaborativeTrip';
 
 interface WhoScreenProps {
   onNavigate: (screen: ScreenId) => void;
@@ -11,6 +14,7 @@ export const WhoScreen: React.FC<WhoScreenProps> = ({ onNavigate }) => {
   // Party size drives per-person cost estimates in the itinerary, so it goes
   // to the store rather than staying local to this screen.
   const count = useTripStore((state) => state.travelers);
+  const tripId = useTripStore((state) => state.tripId);
   const setCount = useTripStore((state) => state.setTravelers);
   const [isBouncing, setIsBouncing] = useState(false);
 
@@ -39,6 +43,40 @@ export const WhoScreen: React.FC<WhoScreenProps> = ({ onNavigate }) => {
   const handlePillClick = (val: number) => {
     setCount(val);
     triggerBounce();
+  };
+
+  const handleShare = async () => {
+    // This is the local prototype handoff for collaboration: a future remote
+    // repository can use the same tripId to sync preferences, budget,
+    // must-have places, and itinerary edits between everyone who joins.
+    const sharePath = tripId === MOCK_COLLABORATIVE_TRIP_ID
+      ? '/demo/penang'
+      : `/trips/${encodeURIComponent(tripId)}/onboarding/who`;
+    const shareUrl = `${window.location.origin}${sharePath}`;
+    const shareData = {
+      title: 'TravelBuddy trip',
+      text: 'Join our TravelBuddy trip plan',
+      url: shareUrl,
+    };
+
+    try {
+      if (typeof navigator.share === 'function') {
+        await navigator.share(shareData);
+        return;
+      }
+
+      if (typeof navigator.clipboard?.writeText === 'function') {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Share link copied');
+        return;
+      }
+
+      toast.error('Sharing is unavailable in this browser');
+    } catch (error) {
+      // Closing the native share sheet is not an error worth surfacing.
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      toast.error('Could not create a share link');
+    }
   };
 
   const getLabel = () => {
@@ -177,6 +215,20 @@ export const WhoScreen: React.FC<WhoScreenProps> = ({ onNavigate }) => {
                 Group
               </button>
             </div>
+
+            {count > 1 && (
+              /* Share is only relevant once this trip has collaborators. */
+              <button
+                id="btn-share-trip"
+                type="button"
+                aria-label="Share trip"
+                onClick={() => void handleShare()}
+                className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-full border border-[#C1CAB5]/45 px-4 py-2 font-headline text-xs font-bold uppercase tracking-wide text-[#163300] transition-colors hover:border-[#163300] hover:bg-[#F5F4EE] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#163300] active:scale-[0.98]"
+              >
+                <Share2 aria-hidden="true" className="h-4 w-4" strokeWidth={2.25} />
+                Share
+              </button>
+            )}
           </div>
         </div>
       </main>

@@ -1,10 +1,32 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  createQuotaSafeStateStorage,
   nightsBetween,
   toItinerarySnapshot,
   toTripContext,
   type TripPreferences,
 } from './tripStore';
+
+describe('createQuotaSafeStateStorage', () => {
+  test('does not throw when browser storage quota is exceeded', () => {
+    const quotaError = new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+    const storage = createQuotaSafeStateStorage(() => ({
+      getItem: () => {
+        throw quotaError;
+      },
+      setItem: () => {
+        throw quotaError;
+      },
+      removeItem: () => {
+        throw quotaError;
+      },
+    }));
+
+    expect(storage.getItem('trip')).toBeNull();
+    expect(() => storage.setItem('trip', '{}')).not.toThrow();
+    expect(() => storage.removeItem('trip')).not.toThrow();
+  });
+});
 
 function preferences(overrides: Partial<TripPreferences> = {}): TripPreferences {
   return {
@@ -21,6 +43,7 @@ function preferences(overrides: Partial<TripPreferences> = {}): TripPreferences 
     fixedConversionRate: null,
     travelers: 2,
     mustVisitPlaces: [],
+    collaboration: null,
     ...overrides,
   };
 }

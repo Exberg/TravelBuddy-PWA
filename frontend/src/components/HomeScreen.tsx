@@ -5,7 +5,14 @@ import {
   useTripStore,
   type TripRecord,
 } from '../store/tripStore';
-import { tripRepository } from '../repositories/tripRepository';
+import {
+  ensureMockCollaborativeTrip,
+  tripRepository,
+} from '../repositories/tripRepository';
+import {
+  MOCK_COLLABORATIVE_TRIP_ID,
+  MOCK_COLLABORATIVE_TRIP_IMAGE_URL,
+} from '../data/mockCollaborativeTrip';
 
 interface HomeScreenProps {
   onNavigate: (screen: ScreenId) => void;
@@ -53,8 +60,13 @@ const HomeIcon = ({ className = '' }: IconProps) => (
   <svg className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
 );
 
-const AnalyticsIcon = ({ className = '' }: IconProps) => (
-  <svg className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><line x1="18" x2="18" y1="20" y2="10" /><line x1="12" x2="12" y1="20" y2="4" /><line x1="6" x2="6" y1="20" y2="14" /></svg>
+const GroupIcon = ({ className = '' }: IconProps) => (
+  <svg className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="9" cy="8" r="3" />
+    <path d="M3 20a6 6 0 0 1 12 0" />
+    <path d="M16 5.5a3 3 0 0 1 0 5.8" />
+    <path d="M18 14a6 6 0 0 1 3 5.2" />
+  </svg>
 );
 
 const SettingsIcon = ({ className = '' }: IconProps) => (
@@ -67,6 +79,7 @@ const FALLBACK_TRIP_IMAGES = [
 ];
 
 type TripCardItem = {
+  record: TripRecord;
   tripId: string;
   title: string;
   time: string;
@@ -89,11 +102,14 @@ const toTripCardItem = (trip: TripRecord, index: number): TripCardItem => {
   ) ?? 0;
   const dayCount = trip.itinerary?.days.length;
   return {
+    record: trip,
     tripId: trip.tripId,
     title: trip.itinerary?.title ?? `${trip.destination} trip`,
     time: formatTripDate(trip.startDate, trip.updatedAt ?? 'Planned'),
     duration: dayCount ? `${dayCount} Days Trip` : `${trip.durationLabel} Trip`,
-    image: FALLBACK_TRIP_IMAGES[index % FALLBACK_TRIP_IMAGES.length],
+    image: trip.tripId === MOCK_COLLABORATIVE_TRIP_ID
+      ? MOCK_COLLABORATIVE_TRIP_IMAGE_URL
+      : FALLBACK_TRIP_IMAGES[index % FALLBACK_TRIP_IMAGES.length],
     stats: [
       [String(stopCount), 'stops'],
       [String(trip.travelers), 'pax'],
@@ -102,11 +118,27 @@ const toTripCardItem = (trip: TripRecord, index: number): TripCardItem => {
   };
 };
 
-function TripCard({ item }: { item: TripCardItem }) {
+function TripCard({
+  item,
+  onOpen,
+}: {
+  item: TripCardItem;
+  onOpen: (record: TripRecord) => void;
+}) {
+  const tripPath =
+    item.tripId === MOCK_COLLABORATIVE_TRIP_ID
+      ? '/demo/penang'
+      : `/trips/${encodeURIComponent(item.tripId)}/chat`;
+
   return (
     <Link
-      to={`/trips/${encodeURIComponent(item.tripId)}/chat`}
-      aria-label={`Continue ${item.title} chat`}
+      to={tripPath}
+      onClick={() => onOpen(item.record)}
+      aria-label={
+        item.tripId === MOCK_COLLABORATIVE_TRIP_ID
+          ? `Open ${item.title} collaboration`
+          : `Continue ${item.title} chat`
+      }
       className="flex w-full cursor-pointer items-center gap-4 rounded-[26px] border border-[#e4e2dd] bg-white p-4 text-left shadow-sm transition hover:border-[#9fe870] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#163300] active:scale-[0.99]"
     >
       <div className="h-[110px] w-[110px] shrink-0 overflow-hidden rounded-[18px] bg-[#f5f4ee]"><img alt={item.title} className="h-full w-full object-cover" src={item.image} /></div>
@@ -123,14 +155,27 @@ function TripCard({ item }: { item: TripCardItem }) {
 
 export function HomeScreen({ onNavigate }: HomeScreenProps) {
   const startNewTrip = useTripStore((state) => state.startNewTrip);
+  const activateTrip = useTripStore((state) => state.activateTrip);
   const [tripItems, setTripItems] = useState<TripCardItem[]>([]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function refreshTrips() {
+      // Ensure the one local collaboration demo is available before the home
+      // list reads from storage. All other trips still come from the repository
+      // unchanged.
+      await ensureMockCollaborativeTrip();
       const records = await tripRepository.list();
-      if (!cancelled) setTripItems(records.map(toTripCardItem));
+      // Keep the prototype entry easy to find while leaving the repository's
+      // normal recency ordering untouched for every real trip.
+      const mockTrip = records.find(
+        (record) => record.tripId === MOCK_COLLABORATIVE_TRIP_ID,
+      );
+      const orderedRecords = mockTrip
+        ? [mockTrip, ...records.filter((record) => record !== mockTrip)]
+        : records;
+      if (!cancelled) setTripItems(orderedRecords.map(toTripCardItem));
     }
 
     void refreshTrips();
@@ -172,12 +217,12 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
         </section>
 
         <div className="pb-1 pt-2"><h2 className="text-[26px] font-extrabold tracking-tight text-[#163300]">Recent Trips</h2></div>
-        <div className="flex flex-col gap-3.5">{tripItems.map((item) => <TripCard item={item} key={item.tripId} />)}</div>
+        <div className="flex flex-col gap-3.5">{tripItems.map((item) => <TripCard item={item} key={item.tripId} onOpen={activateTrip} />)}</div>
       </main>
 
       <div className="fixed bottom-0 left-1/2 z-50 w-full max-w-[430px] -translate-x-1/2">
         <Link to="/onboarding/where" aria-label="Add trip" onClick={startNewTrip} className="absolute -top-7 right-6 z-20 flex h-[74px] w-[74px] items-center justify-center rounded-full border border-[#85dc52] bg-[#9fe870] text-[#163300] shadow-xl transition hover:shadow-2xl active:scale-95"><svg fill="none" height="32" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" viewBox="0 0 24 24" width="32" aria-hidden="true"><line x1="12" x2="12" y1="5" y2="19" /><line x1="5" x2="19" y1="12" y2="12" /></svg></Link>
-        <nav className="flex w-full items-center border-t border-[#e4e2dd] bg-white/95 px-6 pb-8 pt-3 shadow-lg backdrop-blur" aria-label="Primary navigation"><div className="flex w-3/4 items-center justify-between pr-4"><button type="button" className="flex flex-col items-center gap-1 text-[#163300]" onClick={() => onNavigate('home')}><HomeIcon className="h-6 w-6" /><span className="text-[11px] font-bold tracking-tight">Home</span></button><button type="button" className="flex flex-col items-center gap-1 text-[#6B6F66] transition hover:text-[#163300]" onClick={() => onNavigate('groups')}><AnalyticsIcon className="h-6 w-6" /><span className="text-[11px] font-medium tracking-tight">Groups</span></button><button type="button" className="flex flex-col items-center gap-1 text-[#6B6F66] transition hover:text-[#163300]" onClick={() => onNavigate('settings')}><SettingsIcon className="h-6 w-6" /><span className="text-[11px] font-medium tracking-tight">Settings</span></button></div></nav>
+        <nav className="flex w-full items-center border-t border-[#e4e2dd] bg-white/95 px-6 pb-8 pt-3 shadow-lg backdrop-blur" aria-label="Primary navigation"><div className="flex w-3/4 items-center justify-between pr-4"><button type="button" className="flex flex-col items-center gap-1 text-[#163300]" onClick={() => onNavigate('home')}><HomeIcon className="h-6 w-6" /><span className="text-[11px] font-bold tracking-tight">Home</span></button><button type="button" className="flex flex-col items-center gap-1 text-[#6B6F66] transition hover:text-[#163300]" onClick={() => onNavigate('groups')}><GroupIcon className="h-6 w-6" /><span className="text-[11px] font-medium tracking-tight">Groups</span></button><button type="button" className="flex flex-col items-center gap-1 text-[#6B6F66] transition hover:text-[#163300]" onClick={() => onNavigate('settings')}><SettingsIcon className="h-6 w-6" /><span className="text-[11px] font-medium tracking-tight">Settings</span></button></div></nav>
       </div>
     </div>
   );

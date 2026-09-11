@@ -38,15 +38,18 @@ export const WhereToScreen: React.FC<WhereToScreenProps> = ({ onNavigate }) => {
   }, [error]);
 
   const handleSelectSuggestion = async (suggestion: (typeof suggestions)[number]) => {
+    const selectionTripId = useTripStore.getState().tripId;
     setIsResolving(true);
     try {
       const place = await suggestion.toPlace();
+      if (useTripStore.getState().tripId !== selectionTripId) return;
       // The full location string ("George Town, Penang, Malaysia") is what the
       // agent plans against; the short name stays for UI headings.
       setDestination(place.name, place.location);
       setSearchQuery(place.location);
       setSelectedDestination(true);
     } catch {
+      if (useTripStore.getState().tripId !== selectionTripId) return;
       // Fall back to the prediction text if fetchFields fails (e.g. rate
       // limited); the user can still continue with a reasonable name.
       const description = `${suggestion.mainText}, ${suggestion.secondaryText}`.replace(

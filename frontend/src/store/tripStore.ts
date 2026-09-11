@@ -13,14 +13,68 @@
 // projects them into the JSON the chat sends as Eve client context.
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import {
+  createJSONStorage,
+  persist,
+  type StateStorage,
+} from 'zustand/middleware';
 import type { Itinerary, MustVisitPlace, PlaceItem } from '../types';
 import { tripRepository } from '../repositories/tripRepository';
 import { getDestinationCurrency, getFixedRate } from '../lib/currency';
 import type { PreferenceKeyword } from '../lib/preferences';
 
+/**
+ * The active-trip pointer is an optimization, not critical data. A full
+ * localStorage quota must never make a state update throw and blank the app.
+ */
+export function createQuotaSafeStateStorage(
+  getStorage: () => StateStorage,
+): StateStorage {
+  return {
+    getItem: (name) => {
+      try {
+        return getStorage().getItem(name);
+      } catch {
+        return null;
+      }
+    },
+    setItem: (name, value) => {
+      try {
+        getStorage().setItem(name, value);
+      } catch {
+        // TripRepository remains the canonical store. The active in-memory
+        // trip is usable when this small pointer cannot be persisted.
+      }
+    },
+    removeItem: (name) => {
+      try {
+        getStorage().removeItem(name);
+      } catch {
+        // Removing an optional cache is best-effort.
+      }
+    },
+  };
+}
+
+const quotaSafeTripStorage = createQuotaSafeStateStorage(
+  () => globalThis.localStorage,
+);
+
 /** TravelBuddy uses one model across the coordinator and all subagents. */
 export type TravelBuddyModel = 'qwen-3.8-max';
+
+export interface TripCollaborator {
+  id: string;
+  name: string;
+  initials: string;
+  budgetMyr: number;
+  isCurrentUser: boolean;
+}
+
+export interface TripCollaboration {
+  name: string;
+  members: TripCollaborator[];
+}
 
 export interface TripPreferences {
   /** Free-form likes and dislikes that should guide every trip. */
@@ -46,6 +100,8 @@ export interface TripPreferences {
   fixedConversionRate: number | null;
   travelers: number;
   mustVisitPlaces: MustVisitPlace[];
+  /** Non-null only for trips that have been shared with a group. */
+  collaboration?: TripCollaboration | null;
 }
 
 export type JsonSafe =
@@ -92,12 +148,14 @@ interface TripState extends TripPreferences, ItinerarySlice {
   setDates: (startDate: string | null, endDate: string | null) => void;
   setDurationLabel: (durationLabel: string) => void;
   setBudgetMyr: (budgetMyr: number) => void;
+  setCollaboratorBudget: (memberId: string, budgetMyr: number) => void;
   setTravelers: (travelers: number) => void;
   toggleMustVisitPlace: (place: PlaceItem) => void;
   removeMustVisitPlace: (placeId: string) => void;
   setModel: (model: TravelBuddyModel) => void;
   hydrateFromRepository: () => Promise<void>;
   selectTrip: (tripId: string) => Promise<boolean>;
+  activateTrip: (record: TripRecord) => void;
   startNewTrip: () => void;
 
   publishItinerary: (
@@ -111,6 +169,10 @@ export interface TripRecord extends TripPreferences, ItinerarySlice {
   tripId: string;
   createdAt: string;
 }
+
+// Prevent an older asynchronous repository read from replacing a trip the
+// traveler selected more recently.
+let tripSelectionSequence = 0;
 
 function createTripId() {
   return globalThis.crypto?.randomUUID?.() ??
@@ -133,6 +195,7 @@ function tripRecordFromState(state: TripState): TripRecord {
     fixedConversionRate: state.fixedConversionRate,
     travelers: state.travelers,
     mustVisitPlaces: state.mustVisitPlaces,
+    collaboration: state.collaboration,
     itinerary: state.itinerary,
     revision: state.revision,
     updatedAt: state.updatedAt,
@@ -180,6 +243,7 @@ function tripRecordToState(
     fixedConversionRate,
     travelers: record.travelers,
     mustVisitPlaces: record.mustVisitPlaces,
+    collaboration: record.collaboration ?? null,
     itinerary: record.itinerary,
     revision: record.revision,
     updatedAt: record.updatedAt,
@@ -234,13 +298,14 @@ const DEFAULT_PREFERENCES: TripPreferences = {
   destinationDescription: null,
   startDate: null,
   endDate: null,
-  durationLabel: '2 Weeks',
+  durationLabel: '1 Week',
   budgetMyr: 4500,
   budgetCurrency: 'MYR',
   destinationCurrency: null,
   fixedConversionRate: null,
   travelers: 1,
   mustVisitPlaces: [],
+  collaboration: null,
 };
 
 function normalizeStoredPreferenceKeywords(
@@ -311,6 +376,24 @@ export const useTripStore = create<TripState>()(
 
       setBudgetMyr: (budgetMyr) => set({ budgetMyr }),
 
+      setCollaboratorBudget: (memberId, budgetMyr) =>
+        set((state) => {
+          if (!state.collaboration) return state;
+
+          const members = state.collaboration.members.map((member) =>
+            member.id === memberId ? { ...member, budgetMyr } : member,
+          );
+          return {
+            collaboration: { ...state.collaboration, members },
+            // The planning agent continues to receive one budget ceiling. For
+            // a group trip it is simply the sum of private contributions.
+            budgetMyr: members.reduce(
+              (total, member) => total + member.budgetMyr,
+              0,
+            ),
+          };
+        }),
+
       setTravelers: (travelers) => set({ travelers }),
 
       toggleMustVisitPlace: (place) =>
@@ -332,6 +415,7 @@ export const useTripStore = create<TripState>()(
                     category: place.category,
                     lat: place.lat,
                     lng: place.lng,
+                    voteCount: 1,
                   },
                 ],
           };
@@ -347,8 +431,10 @@ export const useTripStore = create<TripState>()(
       setModel: (model) => set({ model }),
 
       hydrateFromRepository: async () => {
+        const selectionSequence = ++tripSelectionSequence;
         const current = get();
         const saved = await tripRepository.get(current.tripId);
+        if (selectionSequence !== tripSelectionSequence) return;
         if (saved) {
           set({
             ...tripRecordToState(
@@ -370,7 +456,9 @@ export const useTripStore = create<TripState>()(
       },
 
       selectTrip: async (tripId) => {
+        const selectionSequence = ++tripSelectionSequence;
         const saved = await tripRepository.get(tripId);
+        if (selectionSequence !== tripSelectionSequence) return false;
         if (!saved) return false;
 
         set({
@@ -384,7 +472,22 @@ export const useTripStore = create<TripState>()(
         return true;
       },
 
-      startNewTrip: () =>
+      // Home already holds the canonical record returned by the repository.
+      // Activating that snapshot avoids a second storage read during routing.
+      activateTrip: (record) => {
+        tripSelectionSequence += 1;
+        set({
+          ...tripRecordToState(
+            record,
+            get().travelPreferences,
+            get().travelPreferenceKeywords,
+          ),
+          storageHydrated: true,
+        });
+      },
+
+      startNewTrip: () => {
+        tripSelectionSequence += 1;
         set((state) => {
           if (isMeaningfulTrip(state)) {
             void tripRepository.upsert(tripRecordFromState(state));
@@ -402,7 +505,8 @@ export const useTripStore = create<TripState>()(
             lastChangeNote: null,
             model: state.model,
           };
-        }),
+        });
+      },
 
       publishItinerary: (itinerary, meta) =>
         set((state) =>
@@ -426,6 +530,7 @@ export const useTripStore = create<TripState>()(
     }),
     {
       name: 'travelbuddy:trip:v1',
+      storage: createJSONStorage(() => quotaSafeTripStorage),
       // Actions are recreated on load; only persist data. `version` lets a
       // future schema change invalidate stale saved trips.
       version: 5,
@@ -545,5 +650,6 @@ export function selectTripPreferences(state: TripState): TripPreferences {
     fixedConversionRate: state.fixedConversionRate,
     travelers: state.travelers,
     mustVisitPlaces: state.mustVisitPlaces,
+    collaboration: state.collaboration,
   };
 }

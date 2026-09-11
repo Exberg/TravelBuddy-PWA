@@ -153,7 +153,7 @@ export function ItineraryTimeline({
   const cost = dayCostMyr(day.stops);
 
   return (
-    <div className="flex min-h-0 flex-col">
+    <div className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
       <div className="flex items-baseline justify-between gap-2 pb-2">
         <div className="min-w-0">
           <p className="truncate font-headline text-sm font-bold text-[#163300]">

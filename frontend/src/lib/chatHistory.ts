@@ -1,4 +1,5 @@
 import type { ClientSessionState, MessageStreamEvent } from 'eve/client';
+import { MOCK_COLLABORATIVE_TRIP_ID } from '../data/mockCollaborativeTrip';
 
 const CHAT_HISTORY_KEY = 'travelbuddy:eve-chats:v3';
 const PREVIOUS_CHAT_HISTORY_KEY = 'travelbuddy:eve-chats:v2';
@@ -144,6 +145,19 @@ export class LocalConversationRepository implements ConversationRepository {
       });
 
       let activeChat = migrated.find((chat) => chat.tripId === tripId);
+      const expectedTitle = `${destination.trim() || 'New'} trip`;
+      if (
+        activeChat &&
+        tripId === MOCK_COLLABORATIVE_TRIP_ID &&
+        activeChat.title !== expectedTitle
+      ) {
+        // Early versions could associate the previously active destination's
+        // Eve session with the demo id. Replace only that contaminated demo
+        // conversation; unrelated trip histories must remain untouched.
+        activeChat = createLocalChat(tripId, destination);
+        migrated.unshift(activeChat);
+        changed = true;
+      }
       if (!activeChat) {
         // Unscoped v2 chats are preserved under a legacy id, but must never be
         // adopted by a new trip: doing so replays the previous trip's thread.

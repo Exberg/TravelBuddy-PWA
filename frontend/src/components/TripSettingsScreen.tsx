@@ -28,14 +28,30 @@ export function TripSettingsScreen({ onNavigate }: TripSettingsScreenProps) {
   const [durationLabel, setDurationLabel] = useState(trip.durationLabel);
   const [budget, setBudget] = useState(trip.budgetMyr);
   const [travelers, setTravelers] = useState(trip.travelers);
+  const collaboration = trip.collaboration;
+  const currentMember = collaboration?.members.find(
+    (member) => member.isCurrentUser,
+  );
+  const [yourBudget, setYourBudget] = useState(currentMember?.budgetMyr ?? 0);
+  const collectiveBudget = collaboration
+    ? collaboration.members.reduce(
+        (total, member) =>
+          total + (member.id === currentMember?.id ? yourBudget : member.budgetMyr),
+        0,
+      )
+    : budget;
 
   const saveChanges = () => {
     const cleanDestination = destination.trim();
     trip.setDestination(cleanDestination, cleanDestination || null);
     trip.setDates(startDate || null, endDate || null);
     trip.setDurationLabel(durationLabel);
-    trip.setBudgetMyr(budget);
-    trip.setTravelers(travelers);
+    if (currentMember) {
+      trip.setCollaboratorBudget(currentMember.id, yourBudget);
+    } else {
+      trip.setBudgetMyr(budget);
+      trip.setTravelers(travelers);
+    }
     onNavigate('chat');
   };
 
@@ -55,7 +71,7 @@ export function TripSettingsScreen({ onNavigate }: TripSettingsScreenProps) {
               Your trip
             </p>
             <h1 className="mt-2 font-headline text-[32px] font-extrabold leading-tight tracking-tight">
-              Keep the plan current.
+              Edit your plan
             </h1>
           </div>
 
@@ -118,35 +134,94 @@ export function TripSettingsScreen({ onNavigate }: TripSettingsScreenProps) {
             <div>
               <div className="flex items-end justify-between">
                 <div>
-                  <span className="font-label text-[11px] font-bold uppercase tracking-[0.1em] text-[#717A68]">Budget</span>
-                  <p className="mt-1 font-headline text-[25px] font-extrabold tabular-nums">RM {budget.toLocaleString('en-US')}</p>
+                  <span className="font-label text-[11px] font-bold uppercase tracking-[0.1em] text-[#717A68]">
+                    {collaboration ? 'Collective budget' : 'Budget'}
+                  </span>
+                  <p className="mt-1 font-headline text-[25px] font-extrabold tabular-nums">RM {collectiveBudget.toLocaleString('en-US')}</p>
                 </div>
                 <span className="font-label text-xs text-[#717A68]">MYR</span>
               </div>
-              <input
-                type="range"
-                min="1000"
-                max="15000"
-                step="250"
-                value={budget}
-                onChange={(event) => setBudget(Number(event.target.value))}
-                className="kinetic-range mt-4 w-full cursor-pointer appearance-none bg-transparent"
-                aria-label="Trip budget in Malaysian ringgit"
-              />
-              <div className="flex justify-between font-label text-[11px] text-[#717A68]"><span>RM 1,000</span><span>RM 15,000</span></div>
+              {collaboration && currentMember ? (
+                <div className="mt-5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-headline text-[14px] font-bold">Your contribution</span>
+                    <span className="font-headline text-[16px] font-extrabold tabular-nums">RM {yourBudget.toLocaleString('en-US')}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="250"
+                    max="3000"
+                    step="50"
+                    value={yourBudget}
+                    onChange={(event) => setYourBudget(Number(event.target.value))}
+                    className="kinetic-range mt-3 w-full cursor-pointer appearance-none bg-transparent"
+                    aria-label="Your individual trip budget in Malaysian ringgit"
+                  />
+                  <div className="flex justify-between font-label text-[11px] text-[#717A68]"><span>RM 250</span><span>RM 3,000</span></div>
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="range"
+                    min="1000"
+                    max="15000"
+                    step="250"
+                    value={budget}
+                    onChange={(event) => setBudget(Number(event.target.value))}
+                    className="kinetic-range mt-4 w-full cursor-pointer appearance-none bg-transparent"
+                    aria-label="Trip budget in Malaysian ringgit"
+                  />
+                  <div className="flex justify-between font-label text-[11px] text-[#717A68]"><span>RM 1,000</span><span>RM 15,000</span></div>
+                </>
+              )}
             </div>
 
-            <div className="flex items-center justify-between border-t border-[#E4E2DD] pt-5">
-              <div>
-                <span className="font-label text-[11px] font-bold uppercase tracking-[0.1em] text-[#717A68]">Travelers</span>
-                <p className="mt-1 font-headline text-[16px] font-bold">{travelers === 1 ? 'Solo trip' : `${travelers} people`}</p>
+            {collaboration ? (
+              <div className="border-t border-[#E4E2DD] pt-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-label text-[11px] font-bold uppercase tracking-[0.1em] text-[#717A68]">{collaboration.name}</span>
+                    <p className="mt-1 font-headline text-[16px] font-bold">{collaboration.members.length} people joined</p>
+                  </div>
+                  <div className="flex -space-x-2" aria-label={`${collaboration.members.length} collaborators`}>
+                    {collaboration.members.map((member) => (
+                      <span key={member.id} title={member.name} className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-[#C5EBA3] font-headline text-[10px] font-extrabold text-[#163300]">
+                        {member.initials}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-4 divide-y divide-[#E4E2DD] rounded-2xl bg-[#F5F4EE] px-4">
+                  {collaboration.members.map((member) => {
+                    const memberBudget = member.id === currentMember?.id
+                      ? yourBudget
+                      : member.budgetMyr;
+                    return (
+                      <div key={member.id} className="flex items-center gap-3 py-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white font-headline text-[10px] font-extrabold">{member.initials}</span>
+                        <span className="min-w-0 flex-1 truncate font-headline text-[14px] font-bold">
+                          {member.name}{member.isCurrentUser ? ' (you)' : ''}
+                        </span>
+                        <span className="font-body text-[13px] font-semibold tabular-nums">RM {memberBudget.toLocaleString('en-US')}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="flex items-center gap-3 rounded-full bg-[#F5F4EE] p-1">
-                <button type="button" aria-label="Decrease travelers" onClick={() => setTravelers(Math.max(1, travelers - 1))} className="flex h-9 w-9 items-center justify-center rounded-full text-[22px] text-[#163300] transition hover:bg-white disabled:opacity-30" disabled={travelers <= 1}>−</button>
-                <span className="w-5 text-center font-headline text-[16px] font-extrabold tabular-nums">{travelers}</span>
-                <button type="button" aria-label="Increase travelers" onClick={() => setTravelers(Math.min(12, travelers + 1))} className="flex h-9 w-9 items-center justify-center rounded-full text-[22px] text-[#163300] transition hover:bg-white disabled:opacity-30" disabled={travelers >= 12}>+</button>
+            ) : (
+              <div className="flex items-center justify-between border-t border-[#E4E2DD] pt-5">
+                <div>
+                  <span className="font-label text-[11px] font-bold uppercase tracking-[0.1em] text-[#717A68]">Travelers</span>
+                  <p className="mt-1 font-headline text-[16px] font-bold">{travelers === 1 ? 'Solo trip' : `${travelers} people`}</p>
+                </div>
+                <div className="flex items-center gap-3 rounded-full bg-[#F5F4EE] p-1">
+                  <button type="button" aria-label="Decrease travelers" onClick={() => setTravelers(Math.max(1, travelers - 1))} className="flex h-9 w-9 items-center justify-center rounded-full text-[22px] text-[#163300] transition hover:bg-white disabled:opacity-30" disabled={travelers <= 1}>−</button>
+                  <span className="w-5 text-center font-headline text-[16px] font-extrabold tabular-nums">{travelers}</span>
+                  <button type="button" aria-label="Increase travelers" onClick={() => setTravelers(Math.min(12, travelers + 1))} className="flex h-9 w-9 items-center justify-center rounded-full text-[22px] text-[#163300] transition hover:bg-white disabled:opacity-30" disabled={travelers >= 12}>+</button>
+                </div>
               </div>
-            </div>
+            )}
           </section>
 
           <section className="rounded-[24px] border border-[#E4E2DD] bg-white p-5 shadow-sm">
@@ -161,7 +236,11 @@ export function TripSettingsScreen({ onNavigate }: TripSettingsScreenProps) {
               <div className="mt-4 flex flex-wrap gap-2">
                 {trip.mustVisitPlaces.map((place) => (
                   <button key={place.id} type="button" onClick={() => trip.removeMustVisitPlace(place.id)} className="inline-flex items-center gap-1.5 rounded-full border border-[#C1CAB5] bg-[#F5F4EE] px-3 py-2 font-body text-[13px] text-[#163300] transition hover:border-[#163300]">
-                    {place.title}<span aria-hidden="true" className="text-[#717A68]">×</span>
+                    {place.title}
+                    <span aria-label={`${place.voteCount ?? 1} votes`} className="rounded-full bg-[#EAF9DC] px-1.5 py-0.5 font-label text-[10px] font-bold tabular-nums text-[#163300]">
+                      {place.voteCount ?? 1}
+                    </span>
+                    <span aria-hidden="true" className="text-[#717A68]">×</span>
                   </button>
                 ))}
               </div>

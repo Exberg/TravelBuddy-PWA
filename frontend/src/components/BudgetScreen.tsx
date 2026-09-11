@@ -55,7 +55,7 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigate }) => {
               Budget
             </h1>
             <p className="font-body text-sm text-[#41493A] mt-1.5">
-              Set a monthly target to power your kinetic goals.
+              Set your target budget.
             </p>
           </div>
 

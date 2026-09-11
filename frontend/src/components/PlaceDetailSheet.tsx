@@ -111,7 +111,7 @@ export const PlaceDetailSheet: React.FC<PlaceDetailSheetProps> = ({
       </div>
 
       {/* Scrollable detail body — clears the floating CTA */}
-      <div onScroll={onScroll} className="no-scrollbar flex-1 min-h-0 overflow-y-auto pb-28">
+      <div onScroll={onScroll} className="bottom-sheet-scroll-content no-scrollbar flex-1 min-h-0 overflow-y-auto">
         {/* Photo gallery */}
         {photos.length > 0 ? (
           <div className="relative">
