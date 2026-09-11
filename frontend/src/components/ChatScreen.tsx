@@ -28,6 +28,11 @@ import { EveAssistantProvider } from './EveAssistantProvider';
 import { ItineraryTimeline } from './ItineraryTimeline';
 import { GridMatrixLoader } from './chat/GridMatrixLoader';
 import { ItineraryToolCard } from './chat/ItineraryToolCard';
+import {
+  isPlanningToolName,
+  PlanningProgressCard,
+  PlanningProgressStep,
+} from './chat/PlanningProgressCard';
 import { ShimmerText, ThinkingIndicator } from './chat/ThinkingIndicator';
 import { ReasoningTrace, ThoughtTrace } from './chat/ThoughtTrace';
 import { ToolCallCard } from './chat/ToolCallCard';
@@ -103,7 +108,10 @@ function AssistantMarkdown() {
 }
 
 const THOUGHT_PATH = ['group-thought'] as const;
+const PLANNING_PATH = ['group-planning'] as const;
 type ThoughtGroupKey = (typeof THOUGHT_PATH)[number];
+type PlanningGroupKey = (typeof PLANNING_PATH)[number];
+type ChatGroupKey = ThoughtGroupKey | PlanningGroupKey;
 
 /**
  * Collapses the agent's reasoning and its background tool calls into a single
@@ -116,9 +124,10 @@ type ThoughtGroupKey = (typeof THOUGHT_PATH)[number];
  */
 const groupChatParts = (
   part: PartState,
-): readonly ThoughtGroupKey[] | null => {
+): readonly ChatGroupKey[] | null => {
   if (part.type === 'reasoning') return THOUGHT_PATH;
   if (part.type !== 'tool-call') return null;
+  if (isPlanningToolName(part.toolName)) return PLANNING_PATH;
   if (part.toolName === 'save_itinerary') return null;
 
   const { approval } = part;
@@ -216,6 +225,12 @@ function AssistantMessage({ onOpenItinerary }: { onOpenItinerary: () => void }) 
                     {children}
                   </ThoughtTrace>
                 );
+              case 'group-planning':
+                return (
+                  <PlanningProgressCard status={part.status}>
+                    {children}
+                  </PlanningProgressCard>
+                );
               case 'indicator':
                 return <ThinkingIndicator />;
               case 'text':
@@ -228,6 +243,9 @@ function AssistantMessage({ onOpenItinerary }: { onOpenItinerary: () => void }) 
                   />
                 );
               case 'tool-call':
+                if (isPlanningToolName(part.toolName)) {
+                  return <PlanningProgressStep {...part} />;
+                }
                 if (part.toolName === 'save_itinerary') {
                   return (
                     <ItineraryToolCard

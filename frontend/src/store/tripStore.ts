@@ -17,13 +17,16 @@ import { persist } from 'zustand/middleware';
 import type { Itinerary, MustVisitPlace, PlaceItem } from '../types';
 import { tripRepository } from '../repositories/tripRepository';
 import { getDestinationCurrency, getFixedRate } from '../lib/currency';
+import type { PreferenceKeyword } from '../lib/preferences';
 
-/** Kept in sync with backend/agent/model-selection.ts. */
-export type TravelBuddyModel = 'qwen-3.8-max' | 'gemini-3.8-flash';
+/** TravelBuddy uses one model across the coordinator and all subagents. */
+export type TravelBuddyModel = 'qwen-3.8-max';
 
 export interface TripPreferences {
   /** Free-form likes and dislikes that should guide every trip. */
   travelPreferences: string;
+  /** Structured keywords extracted from the free-form preference text. */
+  travelPreferenceKeywords: PreferenceKeyword[];
   destination: string;
   /** Resolved from Places Autocomplete when the traveler picks a suggestion. */
   destinationDescription: string | null;
@@ -35,7 +38,11 @@ export interface TripPreferences {
   budgetMyr: number;
   budgetCurrency: string;
   destinationCurrency: string | null;
-  /** Captured once when onboarding resolves the destination currency. */
+  /**
+   * Captured once when onboarding resolves the destination currency. Used for
+   * the app's own display only; it is never sent to the agent. See
+   * `toTripContext`.
+   */
   fixedConversionRate: number | null;
   travelers: number;
   mustVisitPlaces: MustVisitPlace[];
@@ -81,6 +88,7 @@ interface TripState extends TripPreferences, ItinerarySlice {
 
   setDestination: (destination: string, description?: string | null) => void;
   setTravelPreferences: (travelPreferences: string) => void;
+  setTravelPreferenceKeywords: (keywords: PreferenceKeyword[]) => void;
   setDates: (startDate: string | null, endDate: string | null) => void;
   setDurationLabel: (durationLabel: string) => void;
   setBudgetMyr: (budgetMyr: number) => void;
@@ -113,6 +121,7 @@ function tripRecordFromState(state: TripState): TripRecord {
   return {
     tripId: state.tripId,
     travelPreferences: state.travelPreferences,
+    travelPreferenceKeywords: state.travelPreferenceKeywords,
     destination: state.destination,
     destinationDescription: state.destinationDescription,
     startDate: state.startDate,
@@ -132,7 +141,11 @@ function tripRecordFromState(state: TripState): TripRecord {
   };
 }
 
-function tripRecordToState(record: TripRecord, travelPreferences: string) {
+function tripRecordToState(
+  record: TripRecord,
+  travelPreferences: string,
+  travelPreferenceKeywords: PreferenceKeyword[],
+) {
   const budgetCurrency = record.budgetCurrency ?? 'MYR';
   const destinationCurrency =
     record.destinationCurrency ??
@@ -152,6 +165,10 @@ function tripRecordToState(record: TripRecord, travelPreferences: string) {
     // Preferences belong to the traveler, not an individual trip. Keep the
     // current global value when moving between saved trips.
     travelPreferences,
+    travelPreferenceKeywords: normalizeStoredPreferenceKeywords(
+      record.travelPreferenceKeywords,
+      travelPreferenceKeywords,
+    ),
     destination: record.destination,
     destinationDescription: record.destinationDescription,
     startDate: record.startDate,
@@ -174,11 +191,24 @@ export function selectTripRecord(state: TripState): TripRecord {
   return tripRecordFromState(state);
 }
 
-/** JSON-safe canonical snapshot Eve uses to recover per-session working state. */
-export function toItinerarySnapshot(state: TripState): TripContext {
+/**
+ * JSON-safe canonical snapshot Eve uses to recover per-session working state.
+ *
+ * The client context is serialised into a model-visible prompt message, so the
+ * full plan is worth sending only when the agent's session does not already
+ * hold it: on a fresh session, or after the app changed the plan itself. Pass
+ * `includeItinerary: false` on later turns to send just the trip identity and
+ * revision. The agent reads the plan back through `get_itinerary`.
+ */
+export function toItinerarySnapshot(
+  state: TripState,
+  { includeItinerary = true }: { includeItinerary?: boolean } = {},
+): TripContext {
   return {
     tripId: state.tripId,
-    itinerary: state.itinerary as unknown as JsonSafe,
+    ...(includeItinerary
+      ? { itinerary: state.itinerary as unknown as JsonSafe }
+      : {}),
     revision: state.revision,
     updatedAt: state.updatedAt,
   };
@@ -197,6 +227,7 @@ export function isMeaningfulTrip(state: TripState) {
 
 const DEFAULT_PREFERENCES: TripPreferences = {
   travelPreferences: '',
+  travelPreferenceKeywords: [],
   // A new trip starts blank; destinations must come from the traveler rather
   // than from the previous demo/default destination.
   destination: '',
@@ -211,6 +242,35 @@ const DEFAULT_PREFERENCES: TripPreferences = {
   travelers: 1,
   mustVisitPlaces: [],
 };
+
+function normalizeStoredPreferenceKeywords(
+  value: unknown,
+  fallback: PreferenceKeyword[] = [],
+) {
+  if (!Array.isArray(value)) return fallback;
+  return value.flatMap((item): PreferenceKeyword[] => {
+    if (typeof item === 'string' && item.trim()) {
+      const legacyLabel = item.trim();
+      const unwantedPrefix = /^(?:i\s+)?(?:do\s+not|don't|dont|dislike|hate|avoid|no|not)\s+/i;
+      const isUnwanted = unwantedPrefix.test(legacyLabel);
+      return [{
+        label: legacyLabel.replace(unwantedPrefix, '').trim(),
+        sentiment: isUnwanted ? 'unwanted' : 'wanted',
+      }];
+    }
+    if (
+      typeof item === 'object' &&
+      item !== null &&
+      'label' in item &&
+      typeof item.label === 'string' &&
+      'sentiment' in item &&
+      (item.sentiment === 'wanted' || item.sentiment === 'unwanted')
+    ) {
+      return [{ label: item.label, sentiment: item.sentiment }];
+    }
+    return [];
+  });
+}
 
 export const useTripStore = create<TripState>()(
   persist(
@@ -241,6 +301,9 @@ export const useTripStore = create<TripState>()(
       },
 
       setTravelPreferences: (travelPreferences) => set({ travelPreferences }),
+
+      setTravelPreferenceKeywords: (travelPreferenceKeywords) =>
+        set({ travelPreferenceKeywords }),
 
       setDates: (startDate, endDate) => set({ startDate, endDate }),
 
@@ -288,7 +351,11 @@ export const useTripStore = create<TripState>()(
         const saved = await tripRepository.get(current.tripId);
         if (saved) {
           set({
-            ...tripRecordToState(saved, current.travelPreferences),
+            ...tripRecordToState(
+              saved,
+              current.travelPreferences,
+              current.travelPreferenceKeywords,
+            ),
             storageHydrated: true,
           });
           return;
@@ -307,7 +374,11 @@ export const useTripStore = create<TripState>()(
         if (!saved) return false;
 
         set({
-          ...tripRecordToState(saved, get().travelPreferences),
+          ...tripRecordToState(
+            saved,
+            get().travelPreferences,
+            get().travelPreferenceKeywords,
+          ),
           storageHydrated: true,
         });
         return true;
@@ -321,6 +392,7 @@ export const useTripStore = create<TripState>()(
           return {
             ...DEFAULT_PREFERENCES,
             travelPreferences: state.travelPreferences,
+            travelPreferenceKeywords: state.travelPreferenceKeywords,
             tripId: createTripId(),
             createdAt: new Date().toISOString(),
             storageHydrated: true,
@@ -356,11 +428,14 @@ export const useTripStore = create<TripState>()(
       name: 'travelbuddy:trip:v1',
       // Actions are recreated on load; only persist data. `version` lets a
       // future schema change invalidate stale saved trips.
-      version: 4,
+      version: 5,
       migrate: (persistedState) => {
         const state = persistedState as Partial<TripState>;
         return {
           ...state,
+          travelPreferenceKeywords: normalizeStoredPreferenceKeywords(
+            state.travelPreferenceKeywords,
+          ),
           tripId:
             typeof state.tripId === 'string' && state.tripId.length > 0
               ? state.tripId
@@ -379,6 +454,7 @@ export const useTripStore = create<TripState>()(
         createdAt: state.createdAt,
         model: state.model,
         travelPreferences: state.travelPreferences,
+        travelPreferenceKeywords: state.travelPreferenceKeywords,
       }),
     },
   ),
@@ -415,13 +491,22 @@ export function toTripContext(preferences: TripPreferences): TripContext {
 
   return {
     ...(travelPreferences ? { travelPreferences } : {}),
+    ...(preferences.travelPreferenceKeywords.length > 0
+      ? {
+          travelPreferenceKeywords: preferences.travelPreferenceKeywords.map(
+            ({ label, sentiment }) => ({ label, sentiment }),
+          ),
+        }
+      : {}),
     destination: preferences.destinationDescription ?? preferences.destination,
     budgetMyr: preferences.budgetMyr,
     budgetCurrency: preferences.budgetCurrency,
     destinationCurrency: preferences.destinationCurrency,
-    ...(preferences.destinationCurrency && preferences.fixedConversionRate
-      ? { fixedConversionRate: preferences.fixedConversionRate }
-      : {}),
+    // `fixedConversionRate` is deliberately withheld. The agent reads this
+    // context as a prompt message, and a visible rate is one it multiplies
+    // itself rather than calling `convert_currency`. The backend derives the
+    // rate from the pair, so the tool stays the only source of a converted
+    // amount. The rate remains in the store for the budget screen's display.
     travelers: preferences.travelers,
     ...(preferences.startDate ? { startDate: preferences.startDate } : {}),
     ...(preferences.endDate ? { endDate: preferences.endDate } : {}),
@@ -448,6 +533,7 @@ export function toTripContext(preferences: TripPreferences): TripContext {
 export function selectTripPreferences(state: TripState): TripPreferences {
   return {
     travelPreferences: state.travelPreferences,
+    travelPreferenceKeywords: state.travelPreferenceKeywords,
     destination: state.destination,
     destinationDescription: state.destinationDescription,
     startDate: state.startDate,

@@ -5,7 +5,7 @@
 
 import { defineTool } from "eve/tools";
 import { z } from "zod";
-import { countStops, itineraryState } from "../lib/itinerary";
+import { countStops, itineraryReadState, itineraryState } from "../lib/itinerary";
 
 export default defineTool({
   description:
@@ -20,6 +20,10 @@ export default defineTool({
         note: "No itinerary has been published in this conversation yet.",
       };
     }
+
+    // Records that this revision was actually read, which `save_itinerary`
+    // requires before it will accept a plan that drops days or stops.
+    itineraryReadState.update(() => ({ revision }));
 
     return {
       exists: true as const,

@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import type { ScreenId } from '../types';
 import {
-  isMeaningfulTrip,
-  selectTripRecord,
   useTripStore,
   type TripRecord,
 } from '../store/tripStore';
@@ -137,17 +136,10 @@ const toTripCardItem = (trip: TripRecord, index: number): TripCardItem => {
   };
 };
 
-function TripCard({
-  item,
-  onOpen,
-}: {
-  item: TripCardItem;
-  onOpen: (tripId: string) => void;
-}) {
+function TripCard({ item }: { item: TripCardItem }) {
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(item.tripId)}
+    <Link
+      to={`/trips/${encodeURIComponent(item.tripId)}/chat`}
       aria-label={`Continue ${item.title} chat`}
       className="flex w-full cursor-pointer items-center gap-4 rounded-[26px] border border-[#e4e2dd] bg-white p-4 text-left shadow-sm transition hover:border-[#9fe870] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#163300] active:scale-[0.99]"
     >
@@ -159,27 +151,18 @@ function TripCard({
           {item.stats.map(([value, label], index) => <div className="flex items-center gap-1" key={`${value}-${label}`}><span className={`h-2 w-2 rounded-full ${index === 0 ? 'bg-[#FF5A5F]' : index === 1 ? 'bg-[#FF9F1C]' : 'bg-[#3A86FF]'}`} /><span className="tnum">{value}</span>{label ? <span className="font-medium text-[#6B6F66]">{label}</span> : null}</div>)}
         </div>
       </div>
-    </button>
+    </Link>
   );
 }
 
 export function HomeScreen({ onNavigate }: HomeScreenProps) {
-  const tripState = useTripStore();
   const startNewTrip = useTripStore((state) => state.startNewTrip);
-  const selectTrip = useTripStore((state) => state.selectTrip);
   const [tripItems, setTripItems] = useState<TripCardItem[]>([]);
-
-  const openTripChat = async (tripId: string) => {
-    if (await selectTrip(tripId)) onNavigate('chat');
-  };
 
   useEffect(() => {
     let cancelled = false;
 
     async function refreshTrips() {
-      if (isMeaningfulTrip(tripState)) {
-        await tripRepository.upsert(selectTripRecord(tripState));
-      }
       const records = await tripRepository.list();
       if (!cancelled) setTripItems(records.map(toTripCardItem));
     }
@@ -188,7 +171,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
     return () => {
       cancelled = true;
     };
-  }, [tripState]);
+  }, []);
 
   return (
     <div className="min-h-screen select-none bg-[#fbf9f4] pb-28 font-sans text-[#1b1c19]">
@@ -203,13 +186,13 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
         <div className="grid w-full grid-cols-3 gap-3"><MacroCard value="RM 1.8k" label="Budget saved" color="#FF6B55" track="#ffe9e4" offset={35} icon={<WalletIcon className="h-3.5 w-3.5 text-[#FF6B55]" />} /><MacroCard value="14" label="Places pinned" color="#FF9F1C" track="#fff2dd" offset={45} icon={<PinIcon className="h-3.5 w-3.5 text-[#FF9F1C]" />} /><MacroCard value="96%" label="Friends going" color="#2E86DE" track="#e5f1fd" offset={15} icon={<CheckIcon className="h-3.5 w-3.5 text-[#2E86DE]" />} /></div>
 
         <div className="pb-1 pt-2"><h2 className="text-[26px] font-extrabold tracking-tight text-[#163300]">Recent Trips</h2></div>
-        <div className="flex flex-col gap-3.5">{tripItems.map((item) => <TripCard item={item} onOpen={(tripId) => void openTripChat(tripId)} key={item.tripId} />)}</div>
+        <div className="flex flex-col gap-3.5">{tripItems.map((item) => <TripCard item={item} key={item.tripId} />)}</div>
       </main>
 
-      <div className="pointer-events-none fixed bottom-0 left-0 right-0 z-50 flex justify-center"><div className="pointer-events-auto relative w-full max-w-md"><button aria-label="Log food" onClick={() => {
-          startNewTrip();
-          onNavigate('where');
-        }} className="absolute -top-7 right-6 z-20 flex h-[74px] w-[74px] items-center justify-center rounded-full border border-[#85dc52] bg-[#9fe870] text-[#163300] shadow-xl transition hover:shadow-2xl active:scale-95"><svg fill="none" height="32" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" viewBox="0 0 24 24" width="32" aria-hidden="true"><line x1="12" x2="12" y1="5" y2="19" /><line x1="5" x2="19" y1="12" y2="12" /></svg></button><nav className="flex w-full items-center border-t border-[#e4e2dd] bg-white/95 px-6 pb-8 pt-3 shadow-lg backdrop-blur" aria-label="Primary navigation"><div className="flex w-3/4 items-center justify-between pr-4"><button type="button" className="flex flex-col items-center gap-1 text-[#163300]" onClick={() => onNavigate('home')}><HomeIcon className="h-6 w-6" /><span className="text-[11px] font-bold tracking-tight">Home</span></button><button type="button" className="flex flex-col items-center gap-1 text-[#6B6F66] transition hover:text-[#163300]" onClick={() => onNavigate('groups')}><AnalyticsIcon className="h-6 w-6" /><span className="text-[11px] font-medium tracking-tight">Groups</span></button><button type="button" className="flex flex-col items-center gap-1 text-[#6B6F66] transition hover:text-[#163300]" onClick={() => onNavigate('settings')}><SettingsIcon className="h-6 w-6" /><span className="text-[11px] font-medium tracking-tight">Settings</span></button></div></nav></div></div>
+      <div className="fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2">
+        <Link to="/onboarding/where" aria-label="Add trip" onClick={startNewTrip} className="absolute -top-7 right-6 z-20 flex h-[74px] w-[74px] items-center justify-center rounded-full border border-[#85dc52] bg-[#9fe870] text-[#163300] shadow-xl transition hover:shadow-2xl active:scale-95"><svg fill="none" height="32" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" viewBox="0 0 24 24" width="32" aria-hidden="true"><line x1="12" x2="12" y1="5" y2="19" /><line x1="5" x2="19" y1="12" y2="12" /></svg></Link>
+        <nav className="flex w-full items-center border-t border-[#e4e2dd] bg-white/95 px-6 pb-8 pt-3 shadow-lg backdrop-blur" aria-label="Primary navigation"><div className="flex w-3/4 items-center justify-between pr-4"><button type="button" className="flex flex-col items-center gap-1 text-[#163300]" onClick={() => onNavigate('home')}><HomeIcon className="h-6 w-6" /><span className="text-[11px] font-bold tracking-tight">Home</span></button><button type="button" className="flex flex-col items-center gap-1 text-[#6B6F66] transition hover:text-[#163300]" onClick={() => onNavigate('groups')}><AnalyticsIcon className="h-6 w-6" /><span className="text-[11px] font-medium tracking-tight">Groups</span></button><button type="button" className="flex flex-col items-center gap-1 text-[#6B6F66] transition hover:text-[#163300]" onClick={() => onNavigate('settings')}><SettingsIcon className="h-6 w-6" /><span className="text-[11px] font-medium tracking-tight">Settings</span></button></div></nav>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { ScreenId } from './types';
 import { WhereToScreen } from './components/WhereToScreen';
@@ -8,7 +8,7 @@ import { BudgetScreen } from './components/BudgetScreen';
 import { WhoScreen } from './components/WhoScreen';
 import { HomeScreen } from './components/HomeScreen';
 import { QuickNavigator } from './components/QuickNavigator';
-import { GroupsSettingsScreen } from './components/GroupsSettingsScreen';
+import { SettingsScreen } from './components/SettingsScreen';
 import { TripSettingsScreen } from './components/TripSettingsScreen';
 import { useTripStore } from './store/tripStore';
 
@@ -88,10 +88,10 @@ function ScreenView({ screen }: ScreenViewProps) {
       );
       break;
     case 'groups':
-      content = <GroupsSettingsScreen screen="groups" onNavigate={onNavigate} />;
+      content = <SettingsScreen screen="groups" onNavigate={onNavigate} />;
       break;
     case 'settings':
-      content = <GroupsSettingsScreen screen="settings" onNavigate={onNavigate} />;
+      content = <SettingsScreen screen="settings" onNavigate={onNavigate} />;
       break;
     case 'trip-settings':
       content = <TripSettingsScreen onNavigate={onNavigate} />;
@@ -106,6 +106,58 @@ function ScreenView({ screen }: ScreenViewProps) {
       ) : null}
     </>
   );
+}
+
+function TripChatRoute() {
+  const { tripId } = useParams<{ tripId: string }>();
+  const selectTrip = useTripStore((state) => state.selectTrip);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'missing'>('loading');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTrip() {
+      setStatus('loading');
+      if (!tripId) {
+        setStatus('missing');
+        return;
+      }
+
+      try {
+        const selected = await selectTrip(tripId);
+        if (!cancelled) setStatus(selected ? 'ready' : 'missing');
+      } catch {
+        if (!cancelled) setStatus('missing');
+      }
+    }
+
+    void loadTrip();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectTrip, tripId]);
+
+  if (status === 'loading') {
+    return (
+      <div className="flex min-h-screen w-full max-w-[430px] items-center justify-center bg-[#FBF9F4] font-label text-sm text-[#41493A]">
+        Restoring your trip…
+      </div>
+    );
+  }
+
+  if (status === 'missing') {
+    return (
+      <div className="flex min-h-screen w-full max-w-[430px] flex-col items-center justify-center gap-4 bg-[#FBF9F4] px-6 text-center font-label text-[#163300]">
+        <h1 className="text-xl font-bold">Trip not found</h1>
+        <p className="text-sm text-[#41493A]">This trip may have been removed or is unavailable.</p>
+        <Link to="/" className="rounded-full bg-[#9FE870] px-5 py-2.5 text-sm font-bold text-[#163300] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#163300]">
+          Back to home
+        </Link>
+      </div>
+    );
+  }
+
+  return <ScreenView screen="chat" />;
 }
 
 export default function App() {
@@ -137,6 +189,7 @@ export default function App() {
           <Route path="/onboarding/who" element={<ScreenView screen="who" />} />
           <Route path="/map" element={<ScreenView screen="map" />} />
           <Route path="/chat" element={<ScreenView screen="chat" />} />
+          <Route path="/trips/:tripId/chat" element={<TripChatRoute />} />
           <Route path="/groups" element={<ScreenView screen="groups" />} />
           <Route path="/settings" element={<ScreenView screen="settings" />} />
           <Route path="/trip-settings" element={<ScreenView screen="trip-settings" />} />

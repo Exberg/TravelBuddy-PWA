@@ -1,6 +1,6 @@
 import { defineState } from "eve/context";
 import { z } from "zod";
-import { resolveTravelBuddyContext } from "../model-selection";
+import { resolveTravelBuddyContext } from "../client-context";
 
 export interface CurrencyRateQuote {
   from: string;
@@ -14,11 +14,59 @@ interface CurrencyRateSlot {
   quote: CurrencyRateQuote | null;
 }
 
+/**
+ * Planning rates the server owns, expressed per 1 MYR.
+ *
+ * Kept in sync with `frontend/src/lib/currency.ts`, which uses the same table
+ * to render the budget screen's approximate destination-currency figure.
+ *
+ * The rate deliberately lives here rather than in the client context: the
+ * client context is serialised into a model-visible prompt message, and a rate
+ * the model can read is a rate the model will multiply itself instead of
+ * calling `convert_currency`. Keeping it server-side makes the tool the only
+ * route to a converted amount.
+ */
+const FIXED_MYR_RATES: Record<string, number> = {
+  AED: 0.98,
+  AUD: 0.33,
+  BOB: 1.64,
+  CNY: 1.68,
+  EUR: 0.21,
+  GBP: 0.18,
+  HUF: 84,
+  INR: 19.6,
+  IDR: 3_700,
+  JPY: 34.2,
+  KHR: 950,
+  KRW: 317,
+  MYR: 1,
+  NZD: 0.36,
+  PHP: 13.1,
+  SGD: 0.3,
+  THB: 8.25,
+  TWD: 7.45,
+  USD: 0.24,
+  VND: 6_100,
+};
+
+/**
+ * The client context only names the currency pair onboarding resolved. The
+ * `fixedConversionRate` the app stores for its own display is intentionally
+ * not read here, so a client that leaks it cannot influence the agent.
+ */
 const tripCurrencySchema = z.object({
   budgetCurrency: z.string().regex(/^[A-Za-z]{3}$/),
   destinationCurrency: z.string().regex(/^[A-Za-z]{3}$/),
-  fixedConversionRate: z.number().finite().positive(),
 });
+
+/** Resolves a planning rate for a pair, or null when either side is unknown. */
+export function rateForPair(from: string, to: string): number | null {
+  const fromRate = FIXED_MYR_RATES[from.toUpperCase()];
+  const toRate = FIXED_MYR_RATES[to.toUpperCase()];
+  if (fromRate === undefined || toRate === undefined) return null;
+
+  return toRate / fromRate;
+}
 
 /** Durable session copy of the rate captured by the onboarding flow. */
 export const currencyRateState = defineState<CurrencyRateSlot>(
@@ -27,8 +75,9 @@ export const currencyRateState = defineState<CurrencyRateSlot>(
 );
 
 /**
- * Reads the app-owned onboarding quote attached to a turn. A missing or invalid
- * quote is represented explicitly so switching trips clears stale session data.
+ * Resolves the trip's planning quote from the currency pair the app attached to
+ * a turn. A missing or unsupported pair is represented explicitly so switching
+ * trips clears stale session data.
  */
 export function resolveClientCurrencyRate(
   messages: readonly { role?: unknown; content?: unknown }[],
@@ -48,14 +97,12 @@ export function resolveClientCurrencyRate(
   const parsed = tripCurrencySchema.safeParse(travelBuddy.trip);
   if (!parsed.success) return { tripId, quote: null };
 
-  return {
-    tripId,
-    quote: {
-      from: parsed.data.budgetCurrency.toUpperCase(),
-      to: parsed.data.destinationCurrency.toUpperCase(),
-      rate: parsed.data.fixedConversionRate,
-    },
-  };
+  const from = parsed.data.budgetCurrency.toUpperCase();
+  const to = parsed.data.destinationCurrency.toUpperCase();
+  const rate = rateForPair(from, to);
+  if (rate === null) return { tripId, quote: null };
+
+  return { tripId, quote: { from, to, rate } };
 }
 
 export function hydrateCurrencyRateState(snapshot: CurrencyRateSlot) {

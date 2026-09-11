@@ -40,7 +40,7 @@ export function TripSettingsScreen({ onNavigate }: TripSettingsScreenProps) {
   };
 
   return (
-    <div className="relative mx-auto flex h-[100dvh] w-full max-w-[430px] flex-col overflow-hidden bg-[#FBF9F4] text-[#163300]">
+    <div className="relative mx-auto flex h-[100dvh] w-full max-w-md flex-col overflow-hidden bg-[#FBF9F4] text-[#163300]">
       <ScreenHeader
         title="Trip Settings"
         currentScreen="trip-settings"
@@ -48,7 +48,7 @@ export function TripSettingsScreen({ onNavigate }: TripSettingsScreenProps) {
         onNavigate={onNavigate}
       />
 
-      <main className="no-scrollbar flex-1 overflow-y-auto px-5 pb-32 pt-20">
+      <main className="no-scrollbar flex-1 overflow-y-auto px-6 pb-32 pt-20">
         <div className="space-y-5">
           <div>
             <p className="font-label text-[11px] font-bold uppercase tracking-[0.12em] text-[#717A68]">
@@ -172,7 +172,7 @@ export function TripSettingsScreen({ onNavigate }: TripSettingsScreenProps) {
         </div>
       </main>
 
-      <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-[#FBF9F4] via-[#FBF9F4] to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-8">
+      <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-[#FBF9F4] via-[#FBF9F4] to-transparent px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-8">
         <button type="button" onClick={saveChanges} className="h-14 w-full rounded-2xl bg-[#9FE870] font-headline text-[16px] font-extrabold text-[#163300] shadow-[0_8px_24px_rgba(159,232,112,0.35)] transition hover:brightness-105 active:scale-[0.98]">
           Save changes
         </button>

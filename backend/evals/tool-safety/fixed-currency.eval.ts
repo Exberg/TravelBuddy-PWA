@@ -8,10 +8,10 @@ export default defineEval({
     await t.send("Convert my RM 10750 budget to HUF.", {
       clientContext: {
         travelBuddy: {
+          // The rate is server-side; the context only names the pair.
           trip: {
             budgetCurrency: "MYR",
             destinationCurrency: "HUF",
-            fixedConversionRate: 84,
           },
         },
       },

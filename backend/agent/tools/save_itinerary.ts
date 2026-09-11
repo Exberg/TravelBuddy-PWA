@@ -10,13 +10,19 @@ import { z } from "zod";
 import {
   countStops,
   describeItinerary,
+  detectPlanShrink,
   findDuplicateStopIds,
   itinerarySchema,
+  itineraryReadState,
   itineraryState,
   ITINERARY_CURRENCY,
   normalizeItinerary,
   sumEstimatedCostMyr,
 } from "../lib/itinerary";
+import {
+  hasItineraryValidationErrors,
+  validateItinerary,
+} from "../lib/itinerary-validation";
 
 export default defineTool({
   description:
@@ -39,13 +45,35 @@ export default defineTool({
       );
     }
 
+    const validationIssues = validateItinerary(itinerary);
+    if (hasItineraryValidationErrors(validationIssues)) {
+      const details = validationIssues
+        .filter((issue) => issue.severity === "error")
+        .map((issue) => `[${issue.code}] ${issue.message}`)
+        .join(" ");
+      throw new Error(
+        `The itinerary failed deterministic validation and was not published. ${details}`,
+      );
+    }
+
     const normalized = normalizeItinerary(itinerary);
+    const current = itineraryState.get();
+
+    // This tool replaces the stored plan. A publish that drops days or stops is
+    // only safe if the caller read the plan it is replacing, so require that
+    // read rather than trusting it to have happened.
+    const shrink = detectPlanShrink(current.itinerary, normalized);
+    if (shrink && itineraryReadState.get().revision !== current.revision) {
+      throw new Error(
+        `This would replace a ${shrink.priorDays}-day, ${shrink.priorStops}-stop itinerary with a ${shrink.nextDays}-day, ${shrink.nextStops}-stop one, and you have not read revision ${current.revision}. save_itinerary replaces rather than merges, so the missing days would be deleted. Call get_itinerary, then resend the COMPLETE plan with only the requested change applied. If the traveler did ask to remove days or stops, calling get_itinerary first satisfies this check.`,
+      );
+    }
+
     const estimatedTotalMyr =
       normalized.estimatedTotalMyr ?? sumEstimatedCostMyr(normalized) ?? undefined;
     const published = { ...normalized, estimatedTotalMyr };
     const updatedAt = new Date().toISOString();
 
-    const current = itineraryState.get();
     const revision = current.revision + 1;
     itineraryState.update(() => ({
       tripId: current.tripId,
@@ -53,6 +81,9 @@ export default defineTool({
       revision,
       updatedAt,
     }));
+    // The caller authored this revision, so it knows the plan without re-reading
+    // it. This keeps a second edit in the same turn from tripping the check.
+    itineraryReadState.update(() => ({ revision }));
 
     return {
       status: "published" as const,

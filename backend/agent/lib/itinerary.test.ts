@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   countStops,
   describeItinerary,
+  detectPlanShrink,
   findDuplicateStopIds,
   itinerarySchema,
   normalizeItinerary,
@@ -9,6 +10,25 @@ import {
   sumEstimatedCostMyr,
   type Itinerary,
 } from "./itinerary";
+
+function withTwoDays(): Itinerary {
+  const itinerary = makeItinerary();
+  itinerary.days.push({
+    day: 2,
+    title: "Coast",
+    stops: [
+      {
+        id: "sunset",
+        time: "18:30",
+        segment: "evening",
+        title: "Clan Jetties",
+        description: "Waterfront sunset.",
+        category: "nature",
+      },
+    ],
+  });
+  return itinerary;
+}
 
 function makeItinerary(overrides: Partial<Itinerary> = {}): Itinerary {
   return {
@@ -140,7 +160,67 @@ describe("countStops and describeItinerary", () => {
   });
 });
 
+describe("detectPlanShrink", () => {
+  test("reports a dropped day", () => {
+    expect(detectPlanShrink(withTwoDays(), makeItinerary())).toEqual({
+      priorDays: 2,
+      nextDays: 1,
+      priorStops: 2,
+      nextStops: 1,
+    });
+  });
+
+  test("reports a dropped stop even when the day count holds", () => {
+    const prior = makeItinerary();
+    prior.days[0]!.stops.push({
+      id: "extra",
+      time: "15:00",
+      segment: "afternoon",
+      title: "Kek Lok Si",
+      description: "Hillside temple.",
+      category: "sight",
+    });
+
+    expect(detectPlanShrink(prior, makeItinerary())).toMatchObject({
+      priorStops: 2,
+      nextStops: 1,
+    });
+  });
+
+  test("allows a plan that grows or stays the same size", () => {
+    expect(detectPlanShrink(makeItinerary(), withTwoDays())).toBeNull();
+    expect(detectPlanShrink(makeItinerary(), makeItinerary())).toBeNull();
+  });
+
+  test("allows the first publish, when there is nothing to lose", () => {
+    expect(detectPlanShrink(null, makeItinerary())).toBeNull();
+  });
+});
+
 describe("resolveClientItinerarySnapshot", () => {
+  test("reads a snapshot that omits the plan the session already holds", () => {
+    expect(
+      resolveClientItinerarySnapshot([
+        {
+          role: "user",
+          content: `Client context:\n${JSON.stringify({
+            travelBuddy: {
+              itinerarySnapshot: {
+                tripId: "trip-1",
+                revision: 3,
+                updatedAt: "2026-09-09T12:00:00.000Z",
+              },
+            },
+          })}`,
+        },
+      ]),
+    ).toEqual({
+      tripId: "trip-1",
+      revision: 3,
+      updatedAt: "2026-09-09T12:00:00.000Z",
+    });
+  });
+
   test("reads the canonical snapshot from Eve client context", () => {
     const itinerary = makeItinerary();
     const snapshot = resolveClientItinerarySnapshot([

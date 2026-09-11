@@ -1,11 +1,3 @@
-export const QWEN_MODEL_ALIAS = "qwen-3.8-max";
-export const GEMINI_MODEL_ALIAS = "gemini-3.8-flash";
-
-export type TravelBuddyModelAlias =
-  | typeof QWEN_MODEL_ALIAS
-  | typeof GEMINI_MODEL_ALIAS;
-
-export const DEFAULT_MODEL_ALIAS: TravelBuddyModelAlias = QWEN_MODEL_ALIAS;
 const CLIENT_CONTEXT_PREFIX = "Client context:\n";
 
 function messageText(content: unknown): string | undefined {
@@ -22,26 +14,6 @@ function messageText(content: unknown): string | undefined {
     )
     .map((part) => part.text)
     .join("");
-}
-
-function modelFromContext(value: unknown): TravelBuddyModelAlias | undefined {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return undefined;
-  }
-
-  const travelBuddy = (value as { travelBuddy?: unknown }).travelBuddy;
-  if (
-    typeof travelBuddy !== "object" ||
-    travelBuddy === null ||
-    Array.isArray(travelBuddy)
-  ) {
-    return undefined;
-  }
-
-  const model = (travelBuddy as { model?: unknown }).model;
-  return model === QWEN_MODEL_ALIAS || model === GEMINI_MODEL_ALIAS
-    ? model
-    : undefined;
 }
 
 export function resolveTravelBuddyContext(
@@ -75,14 +47,4 @@ export function resolveTravelBuddyContext(
   }
 
   return undefined;
-}
-
-/** Reads the latest TravelBuddy client context, defaulting invalid input. */
-export function resolveRequestedModel(
-  messages: readonly { role?: unknown; content?: unknown }[],
-): TravelBuddyModelAlias {
-  const travelBuddy = resolveTravelBuddyContext(messages);
-  return travelBuddy
-    ? modelFromContext({ travelBuddy }) ?? DEFAULT_MODEL_ALIAS
-    : DEFAULT_MODEL_ALIAS;
 }

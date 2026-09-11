@@ -18,6 +18,7 @@ const trip = (overrides: Partial<TripRecord> = {}): TripRecord => ({
   tripId: 'trip-1',
   createdAt: '2026-09-09T10:00:00.000Z',
   travelPreferences: '',
+  travelPreferenceKeywords: [],
   destination: 'Penang',
   destinationDescription: 'George Town, Penang, Malaysia',
   startDate: null,
@@ -52,5 +53,17 @@ describe('LocalTripRepository', () => {
   test('returns null for an unknown active trip pointer', async () => {
     const repository = new LocalTripRepository();
     expect(await repository.get('missing')).toBeNull();
+  });
+
+  test('does not expose legacy records without a trip id as clickable trips', async () => {
+    const repository = new LocalTripRepository();
+    const storage = (globalThis.window as { localStorage: MemoryStorage }).localStorage;
+    storage.setItem(
+      'travelbuddy:trips:v1',
+      JSON.stringify([{ ...trip(), tripId: undefined }, trip()]),
+    );
+
+    expect(await repository.list()).toHaveLength(1);
+    expect((await repository.list())[0]?.tripId).toBe('trip-1');
   });
 });

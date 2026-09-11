@@ -138,6 +138,10 @@ export default defineConfig(({mode}) => {
           target: eveProxyTarget,
           changeOrigin: true,
         },
+        '/preferences': {
+          target: eveProxyTarget,
+          changeOrigin: true,
+        },
       },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.

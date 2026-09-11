@@ -1,9 +1,15 @@
 import { describe, expect, test } from 'bun:test';
-import { nightsBetween, toTripContext, type TripPreferences } from './tripStore';
+import {
+  nightsBetween,
+  toItinerarySnapshot,
+  toTripContext,
+  type TripPreferences,
+} from './tripStore';
 
 function preferences(overrides: Partial<TripPreferences> = {}): TripPreferences {
   return {
     travelPreferences: '',
+    travelPreferenceKeywords: [],
     destination: 'Penang',
     destinationDescription: null,
     startDate: null,
@@ -57,7 +63,7 @@ describe('toTripContext', () => {
     expect(context.durationPreference).toBeUndefined();
   });
 
-  test('passes the selected currency pair and fixed rate to the agent', () => {
+  test('passes the selected currency pair to the agent', () => {
     const context = toTripContext(
       preferences({
         destinationDescription: 'Tokyo, Japan',
@@ -69,8 +75,20 @@ describe('toTripContext', () => {
     expect(context).toMatchObject({
       budgetCurrency: 'MYR',
       destinationCurrency: 'JPY',
-      fixedConversionRate: 34.2,
     });
+  });
+
+  test('withholds the conversion rate so the agent must use its tool', () => {
+    const context = toTripContext(
+      preferences({
+        destinationDescription: 'Tokyo, Japan',
+        destinationCurrency: 'JPY',
+        fixedConversionRate: 34.2,
+      }),
+    );
+
+    expect(context.fixedConversionRate).toBeUndefined();
+    expect(JSON.stringify(context)).not.toContain('34.2');
   });
 
   test('falls back to the duration preset when dates are not set', () => {
@@ -130,5 +148,48 @@ describe('toTripContext', () => {
       toTripContext(preferences({ travelPreferences: '   ' }))
         .travelPreferences,
     ).toBeUndefined();
+  });
+
+  test('includes structured preference keywords when present', () => {
+    expect(
+      toTripContext(
+        preferences({
+          travelPreferenceKeywords: [
+            { label: 'local food', sentiment: 'wanted' },
+            { label: 'early mornings', sentiment: 'unwanted' },
+          ],
+        }),
+      ).travelPreferenceKeywords,
+    ).toEqual([
+      { label: 'local food', sentiment: 'wanted' },
+      { label: 'early mornings', sentiment: 'unwanted' },
+    ]);
+  });
+
+  test('omits empty structured preference keywords', () => {
+    expect(toTripContext(preferences()).travelPreferenceKeywords).toBeUndefined();
+  });
+});
+describe('toItinerarySnapshot', () => {
+  const state = {
+    tripId: 'trip-1',
+    revision: 4,
+    updatedAt: '2026-09-09T12:00:00.000Z',
+    itinerary: { title: 'Penang Weekend', days: [] },
+  } as unknown as Parameters<typeof toItinerarySnapshot>[0];
+
+  test('carries the full plan when the session needs it', () => {
+    expect(toItinerarySnapshot(state)).toMatchObject({
+      tripId: 'trip-1',
+      revision: 4,
+      itinerary: { title: 'Penang Weekend' },
+    });
+  });
+
+  test('omits the plan the agent session already holds', () => {
+    const snapshot = toItinerarySnapshot(state, { includeItinerary: false });
+
+    expect(snapshot.itinerary).toBeUndefined();
+    expect(snapshot).toMatchObject({ tripId: 'trip-1', revision: 4 });
   });
 });

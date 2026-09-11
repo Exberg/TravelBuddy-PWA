@@ -26,9 +26,13 @@ function readLocalRecords(): TripRecord[] {
   }
 }
 
+function hasTripId(record: TripRecord): record is TripRecord & { tripId: string } {
+  return typeof record.tripId === 'string' && record.tripId.length > 0;
+}
+
 export class LocalTripRepository implements TripRepository {
   async list() {
-    return readLocalRecords().sort((left, right) => {
+    return readLocalRecords().filter(hasTripId).sort((left, right) => {
       const leftTime = left.updatedAt ?? left.createdAt;
       const rightTime = right.updatedAt ?? right.createdAt;
       return rightTime.localeCompare(leftTime);
@@ -36,7 +40,9 @@ export class LocalTripRepository implements TripRepository {
   }
 
   async get(tripId: string) {
-    return readLocalRecords().find((record) => record.tripId === tripId) ?? null;
+    return readLocalRecords().find(
+      (record) => hasTripId(record) && record.tripId === tripId,
+    ) ?? null;
   }
 
   async upsert(record: TripRecord) {

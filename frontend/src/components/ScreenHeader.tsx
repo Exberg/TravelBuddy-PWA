@@ -30,7 +30,7 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
   ];
 
   return (
-    <header className="fixed top-0 max-w-[430px] w-full z-50 bg-[#FBF9F4]/90 backdrop-blur-md pt-safe border-b border-black/[0.04]">
+    <header className="fixed top-0 max-w-md w-full z-50 bg-[#FBF9F4]/90 backdrop-blur-md pt-safe border-b border-black/[0.04]">
       <div className="h-14 px-4 flex items-center justify-between">
         {showBack ? (
           <button

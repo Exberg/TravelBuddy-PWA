@@ -61,6 +61,14 @@ export function EveAssistantProvider({
 }: EveAssistantProviderProps) {
   const eventsRef = useRef<MessageStreamEvent[]>([...chat.events]);
   const sessionRef = useRef<ClientSessionState | undefined>(chat.session);
+  // The trip/revision whose full itinerary the current agent session already
+  // holds. While this matches, turns carry only the revision instead of the
+  // whole plan, and the agent reads it back with `get_itinerary` when it needs
+  // it. `null` forces a resend, which is what we want on a fresh session.
+  const syncedItineraryRef = useRef<{
+    sessionId: string | null;
+    key: string | null;
+  }>({ sessionId: chat.session?.sessionId ?? null, key: null });
   const configuredHost = import.meta.env.VITE_EVE_URL?.trim();
   const dictationAdapter = useMemo(
     () =>
@@ -92,11 +100,20 @@ export function EveAssistantProvider({
         ...input,
         clientContext: (() => {
           const tripState = useTripStore.getState();
+          const sessionId = sessionRef.current?.sessionId ?? null;
+          const key = `${tripState.tripId}:${tripState.revision}`;
+          const synced = syncedItineraryRef.current;
+          const includeItinerary =
+            synced.key !== key || synced.sessionId !== sessionId;
+          syncedItineraryRef.current = { sessionId, key };
+
           return {
             surface: 'TravelBuddy PWA',
             travelBuddy: {
               model: tripState.model,
-              itinerarySnapshot: toItinerarySnapshot(tripState),
+              itinerarySnapshot: toItinerarySnapshot(tripState, {
+                includeItinerary,
+              }),
               // Everything the onboarding screens collected. The agent treats the
               // destination, dates, budget, party size and must-visit places as
               // hard constraints on any itinerary it builds.
@@ -113,11 +130,18 @@ export function EveAssistantProvider({
 
       const published = readPublishedItinerary(event);
       if (published) {
-        useTripStore.getState().publishItinerary(published.itinerary, {
+        const store = useTripStore.getState();
+        store.publishItinerary(published.itinerary, {
           revision: published.revision,
           updatedAt: published.updatedAt,
           changeNote: published.changeNote,
         });
+        // The agent authored this revision, so its session already holds it.
+        // Without this the next turn would resend a plan it just wrote.
+        syncedItineraryRef.current = {
+          sessionId: sessionRef.current?.sessionId ?? null,
+          key: `${store.tripId}:${published.revision}`,
+        };
       }
     },
     onSessionChange: (session) => {

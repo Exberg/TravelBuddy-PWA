@@ -13,7 +13,7 @@
 
 import { defineState } from "eve/context";
 import { z } from "zod";
-import { resolveTravelBuddyContext } from "../model-selection";
+import { resolveTravelBuddyContext } from "../client-context";
 
 export const ITINERARY_CURRENCY = "MYR";
 
@@ -170,9 +170,29 @@ export const itineraryState = defineState<ItinerarySlot>(
   () => ({ tripId: null, itinerary: null, revision: 0, updatedAt: null }),
 );
 
+/**
+ * Tracks whether the model has actually read the plan it is about to replace.
+ *
+ * `save_itinerary` replaces rather than merges, so a caller that publishes a
+ * shortened plan without reading the current one silently deletes the
+ * traveler's days. The plan is no longer resident in the prompt on every turn,
+ * so this records the revision `get_itinerary` last returned and lets the save
+ * refuse a destructive publish that was never based on a read.
+ */
+export const itineraryReadState = defineState<{ revision: number | null }>(
+  "travelbuddy.itinerary-read",
+  () => ({ revision: null }),
+);
+
+/**
+ * `itinerary` is optional: the app omits it once the current Eve session has
+ * already received the plan at this revision, so later turns carry only the
+ * trip identity and revision instead of the whole plan. An explicit `null`
+ * still means "the traveler has no plan", which is a real state to reconcile.
+ */
 const clientItinerarySnapshotSchema = z.object({
   tripId: z.string().min(1),
-  itinerary: itinerarySchema.nullable(),
+  itinerary: itinerarySchema.nullable().optional(),
   revision: z.number().int().min(0),
   updatedAt: z.string().nullable(),
 });
@@ -198,14 +218,63 @@ export function resolveClientItinerarySnapshot(
  */
 export function hydrateItineraryState(snapshot: ClientItinerarySnapshot) {
   const current = itineraryState.get();
+  const sameTrip = current.tripId === snapshot.tripId;
+
+  // No plan attached because this session already holds it. Keep what we have
+  // rather than clearing the slot on a metadata-only turn. A snapshot for a
+  // different trip is the exception: serving the previous trip's itinerary
+  // would be worse than serving none.
+  if (snapshot.itinerary === undefined && sameTrip) return;
+
+  const itinerary = snapshot.itinerary ?? null;
+
+  // Monotonic within a trip, so replaying an older client snapshot cannot
+  // overwrite newer server work the stream has not delivered yet. An empty slot
+  // holds no such work, so it never blocks a plan arriving late.
   if (
-    current.tripId === snapshot.tripId &&
+    sameTrip &&
+    current.itinerary !== null &&
     current.revision >= snapshot.revision
   ) {
     return;
   }
 
-  itineraryState.update(() => snapshot);
+  itineraryState.update(() => ({
+    tripId: snapshot.tripId,
+    itinerary,
+    revision: snapshot.revision,
+    updatedAt: snapshot.updatedAt,
+  }));
+}
+
+export interface PlanShrink {
+  priorDays: number;
+  nextDays: number;
+  priorStops: number;
+  nextStops: number;
+}
+
+/**
+ * Reports whether a replacement plan drops days or stops the stored plan had.
+ * Returns null when nothing was lost, so only destructive publishes are gated.
+ */
+export function detectPlanShrink(
+  prior: Itinerary | null,
+  next: Itinerary,
+): PlanShrink | null {
+  if (!prior) return null;
+
+  const shrink: PlanShrink = {
+    priorDays: prior.days.length,
+    nextDays: next.days.length,
+    priorStops: countStops(prior),
+    nextStops: countStops(next),
+  };
+
+  return shrink.nextDays < shrink.priorDays ||
+    shrink.nextStops < shrink.priorStops
+    ? shrink
+    : null;
 }
 
 export function countStops(itinerary: Itinerary): number {

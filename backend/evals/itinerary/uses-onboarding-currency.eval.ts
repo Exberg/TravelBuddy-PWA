@@ -23,8 +23,9 @@ export default defineEval({
             days: 1,
             budgetMyr: 10_750,
             budgetCurrency: "MYR",
+            // No rate here, matching production: the agent cannot see one, so
+            // `convert_currency` is its only route to a HUF figure.
             destinationCurrency: "HUF",
-            fixedConversionRate: 84,
             travelers: 2,
           },
         },

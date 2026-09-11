@@ -30,19 +30,17 @@ const NavItem = ({ active, icon, label, onClick }: { active: boolean; icon: Reac
 
 export function BottomNav({ currentScreen, onNavigate, onCreateTrip }: BottomNavProps) {
   return (
-    <div className="pointer-events-none fixed bottom-0 left-0 right-0 z-50 flex justify-center">
-      <div className="pointer-events-auto relative w-full max-w-md">
-        <button aria-label="Log food" onClick={onCreateTrip} className="absolute -top-7 right-6 z-20 flex h-[74px] w-[74px] items-center justify-center rounded-full border border-[#85dc52] bg-[#9fe870] text-[#163300] shadow-xl transition hover:shadow-2xl active:scale-95">
-          <svg fill="none" height="32" stroke="currentColor" strokeLinecap="round" strokeWidth="3" viewBox="0 0 24 24" width="32" aria-hidden="true"><line x1="12" x2="12" y1="5" y2="19" /><line x1="5" x2="19" y1="12" y2="12" /></svg>
-        </button>
-        <nav className="flex w-full items-center border-t border-[#e4e2dd] bg-white/95 px-6 pb-8 pt-3 shadow-lg backdrop-blur" aria-label="Primary navigation">
-          <div className="flex w-3/4 items-center justify-between pr-4">
-            <NavItem active={currentScreen === 'home'} icon={<HomeIcon className="h-6 w-6" />} label="Home" onClick={() => onNavigate('home')} />
-            <NavItem active={currentScreen === 'groups'} icon={<AnalyticsIcon className="h-6 w-6" />} label="Groups" onClick={() => onNavigate('groups')} />
-            <NavItem active={currentScreen === 'settings'} icon={<SettingsIcon className="h-6 w-6" />} label="Settings" onClick={() => onNavigate('settings')} />
-          </div>
-        </nav>
-      </div>
+    <div className="fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2">
+      <button type="button" aria-label="Add trip" onClick={onCreateTrip} className="absolute -top-7 right-6 z-20 flex h-[74px] w-[74px] items-center justify-center rounded-full border border-[#85dc52] bg-[#9fe870] text-[#163300] shadow-xl transition hover:shadow-2xl active:scale-95">
+        <svg fill="none" height="32" stroke="currentColor" strokeLinecap="round" strokeWidth="3" viewBox="0 0 24 24" width="32" aria-hidden="true"><line x1="12" x2="12" y1="5" y2="19" /><line x1="5" x2="19" y1="12" y2="12" /></svg>
+      </button>
+      <nav className="flex w-full items-center border-t border-[#e4e2dd] bg-white/95 px-6 pb-8 pt-3 shadow-lg backdrop-blur" aria-label="Primary navigation">
+        <div className="flex w-3/4 items-center justify-between pr-4">
+          <NavItem active={currentScreen === 'home'} icon={<HomeIcon className="h-6 w-6" />} label="Home" onClick={() => onNavigate('home')} />
+          <NavItem active={currentScreen === 'groups'} icon={<AnalyticsIcon className="h-6 w-6" />} label="Groups" onClick={() => onNavigate('groups')} />
+          <NavItem active={currentScreen === 'settings'} icon={<SettingsIcon className="h-6 w-6" />} label="Settings" onClick={() => onNavigate('settings')} />
+        </div>
+      </nav>
     </div>
   );
 }

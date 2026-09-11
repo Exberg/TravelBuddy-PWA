@@ -3,6 +3,7 @@ import type { ToolCallMessagePartProps } from '@assistant-ui/react';
 import { GridMatrixLoader, MatrixSkeletonRows } from './GridMatrixLoader';
 import { ShimmerText } from './ThinkingIndicator';
 import { countStops, formatMyr, parseSaveItineraryResult } from '../../lib/itinerary';
+import { ArtifactCard } from '../assistant-ui/elements/ArtifactCard';
 
 /**
  * In-chat card for the agent's `save_itinerary` call.
@@ -59,38 +60,26 @@ export function ItineraryToolCard({
 
   const { itinerary, changeNote, revision } = published;
 
-  return (
-    <button
-      type="button"
-      onClick={onOpenItinerary}
-      aria-label={`Open ${itinerary.title} itinerary`}
-      className="tb-rise block w-full cursor-pointer rounded-2xl border border-[#9FE870]/50 bg-[#F5F4EE] p-4 text-left transition-[transform,border-color,background-color] hover:border-[#9FE870] hover:bg-[#eaf9dc] active:scale-[0.985]"
-    >
-      <div className="flex items-center gap-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#9FE870]">
-          <span className="material-symbols-outlined text-[13px] text-[#163300]">
-            route
-          </span>
-        </span>
-        <p className="font-label text-[11px] font-bold uppercase tracking-wide text-[#41493A]">
-          {revision > 1 ? 'Itinerary updated' : 'Itinerary ready'}
-        </p>
-      </div>
+  const stopCount = countStops(itinerary);
+  const artifactMeta = `${itinerary.days.length} ${
+    itinerary.days.length === 1 ? 'day' : 'days'
+  } · ${stopCount} ${stopCount === 1 ? 'stop' : 'stops'} · v${revision}`;
 
-      <p className="mt-1.5 font-headline text-base font-bold text-[#163300]">
-        {itinerary.title}
-      </p>
-      <p className="mt-1 font-body text-xs leading-relaxed text-[#41493A]">
+  return (
+    <section className="tb-rise flex flex-col gap-3 rounded-2xl border border-[#9FE870]/50 bg-[#F5F4EE] p-3">
+      <ArtifactCard
+        title={itinerary.title}
+        meta={artifactMeta}
+        onClick={onOpenItinerary}
+        aria-label={`Open ${itinerary.title} itinerary`}
+        className="border-0 bg-white p-3 hover:bg-[#EAF9DC]"
+      />
+
+      <p className="px-1 font-body text-xs leading-relaxed text-[#41493A]">
         {changeNote}
       </p>
 
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <span className="rounded-full bg-white px-2.5 py-1 font-label text-[11px] font-semibold text-[#163300]">
-          {itinerary.days.length} {itinerary.days.length === 1 ? 'day' : 'days'}
-        </span>
-        <span className="rounded-full bg-white px-2.5 py-1 font-label text-[11px] font-semibold text-[#163300]">
-          {countStops(itinerary)} stops
-        </span>
+      <div className="flex flex-wrap items-center gap-1.5 px-1">
         {typeof itinerary.estimatedTotalMyr === 'number' ? (
           <span className="rounded-full bg-[#eaf9dc] px-2.5 py-1 font-label text-[11px] font-bold tabular-nums text-[#163300]">
             ~{formatMyr(itinerary.estimatedTotalMyr)}
@@ -102,7 +91,7 @@ export function ItineraryToolCard({
       </div>
 
       {itinerary.assumptions?.length ? (
-        <ul className="mt-3 flex list-none flex-col gap-1">
+        <ul className="flex list-none flex-col gap-1 px-1">
           {itinerary.assumptions.map((assumption) => (
             <li
               key={assumption}
@@ -114,11 +103,6 @@ export function ItineraryToolCard({
           ))}
         </ul>
       ) : null}
-
-      <p className="mt-3 flex items-center gap-1 font-label text-[11px] font-bold text-[#163300]">
-        Open itinerary
-        <span className="material-symbols-outlined text-[15px]">north_east</span>
-      </p>
-    </button>
+    </section>
   );
 }

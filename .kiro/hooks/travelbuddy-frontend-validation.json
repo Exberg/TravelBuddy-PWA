@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "TravelBuddy frontend validation",
+      "trigger": "PreToolUse",
+      "description": "Runs the requested frontend validation commands in order and prints PWA artifact evidence before a file read.",
+      "matcher": "read_file",
+      "action": {
+        "type": "command",
+        "command": "cd /Users/patrickyang/Developer/Hackathon/TravelBuddy-PWA/frontend || exit 1\nrun_check() {\n  label=\"$1\"\n  shift\n  output_file=\"/tmp/travelbuddy-${label}.log\"\n  \"$@\" >\"$output_file\" 2>&1\n  status=$?\n  printf '\\n===== %s (exit %s) =====\\n' \"$label\" \"$status\"\n  cat \"$output_file\"\n  printf '\\n===== end %s =====\\n' \"$label\"\n}\nrun_check lint bun run lint\nrun_check test bun test\nrun_check build bun run build\nprintf '\\n===== artifact inspection =====\\n'\nprintf '%s\\n' '-- dist/index.html asset references --'\ngrep -Eo '(src|href)=\"[^\"]*(assets|manifest|registerSW)[^\"]*\"' dist/index.html || true\nprintf '%s\\n' '-- dist/sw.js main/chat precache entries --'\ngrep -Eo 'assets/(index|ChatScreen)-[^\"}]+' dist/sw.js || true\nprintf '%s\\n' '-- generated matching assets --'\nfind dist/assets -maxdepth 1 -type f \\( -name 'index-*.js' -o -name 'ChatScreen-*.js' \\) -print | sort\nprintf '%s\\n' '-- source route evidence --'\ngrep -nF '/trips/:tripId/chat' src/App.tsx || true\ngrep -nF 'import(\\x27./components/ChatScreen\\x27)' src/App.tsx || grep -nF \"import('./components/ChatScreen')\" src/App.tsx || true\nprintf '===== end artifact inspection =====\\n'\nexit 0",
+        "timeout": 300
+      }
+    }
+  ]
+}
