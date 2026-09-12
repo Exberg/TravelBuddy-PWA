@@ -1,4 +1,8 @@
 import type { ClientSessionState, MessageStreamEvent } from 'eve/client';
+import {
+  MOCK_COLLABORATIVE_CHAT_EVENTS,
+  MOCK_COLLABORATIVE_CHAT_ID,
+} from '../data/mockCollaborativeChat';
 import { MOCK_COLLABORATIVE_TRIP_ID } from '../data/mockCollaborativeTrip';
 
 const CHAT_HISTORY_KEY = 'travelbuddy:eve-chats:v3';
@@ -48,6 +52,30 @@ export function createLocalChat(tripId: string, destination: string): LocalChat 
     events: [],
     resumeOnMount: false,
   };
+}
+
+function createInitialChat(tripId: string, destination: string): LocalChat {
+  const chat = createLocalChat(tripId, destination);
+  if (tripId !== MOCK_COLLABORATIVE_TRIP_ID) return chat;
+
+  return {
+    ...chat,
+    id: MOCK_COLLABORATIVE_CHAT_ID,
+    title: 'Penang trip',
+    createdAt: '2026-09-10T12:20:00.000Z',
+    updatedAt: '2026-09-10T12:30:00.000Z',
+    events: MOCK_COLLABORATIVE_CHAT_EVENTS,
+  };
+}
+
+function hasPublishedItineraryArtifact(chat: LocalChat) {
+  return chat.events.some(
+    (event) =>
+      event.type === 'action.result' &&
+      event.data.result.kind === 'tool-result' &&
+      event.data.result.toolName === 'save_itinerary' &&
+      event.data.status === 'completed',
+  );
 }
 
 function isSession(value: unknown): value is ClientSessionState {
@@ -154,8 +182,22 @@ export class LocalConversationRepository implements ConversationRepository {
         // Early versions could associate the previously active destination's
         // Eve session with the demo id. Replace only that contaminated demo
         // conversation; unrelated trip histories must remain untouched.
-        activeChat = createLocalChat(tripId, destination);
+        activeChat = createInitialChat(tripId, destination);
         migrated.unshift(activeChat);
+        changed = true;
+      }
+      if (
+        activeChat &&
+        tripId === MOCK_COLLABORATIVE_TRIP_ID &&
+        !hasPublishedItineraryArtifact(activeChat)
+      ) {
+        // The built-in demo should always open with its showcase conversation.
+        // Replace older empty/session-backed demo chats left by pre-seeded
+        // versions, while leaving real trip conversations untouched.
+        const seededChat = createInitialChat(tripId, destination);
+        const index = migrated.findIndex((chat) => chat.id === activeChat?.id);
+        if (index >= 0) migrated[index] = seededChat;
+        activeChat = seededChat;
         changed = true;
       }
       if (!activeChat) {
@@ -183,7 +225,7 @@ export class LocalConversationRepository implements ConversationRepository {
       return history;
     }
 
-    const activeChat = createLocalChat(tripId, destination);
+    const activeChat = createInitialChat(tripId, destination);
     const chats: LocalChat[] = [activeChat];
 
     try {

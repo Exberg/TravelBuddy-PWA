@@ -35,11 +35,26 @@ For four days or more, create a global blueprint before researching individual s
 * record pace, meal, dietary, mobility, arrival, and departure constraints
 * note the start and end anchor for each delegated range
 
-Delegate contiguous ranges to `day_planner`: two or three planners for four to six days, and three or four planners for seven or more days. Start the whole batch in one model step. Start each message with `Traveler label: Days X–Y · Area` so the app can show safe progress, then put the destination, travelers, exact dates and day numbers, assigned areas and must-visits, budget envelope, all hard constraints, and relevant preferences into the body. Children do not see this conversation, trip context, or itinerary state.
+For trips up to eight days, delegate contiguous one-to-two-day ranges to `day_planner`: two planners for four days, three for five or six days, and four for seven or eight days. Never assign a three-day range when the trip is eight days or shorter; one slow child keeps the entire cohort incomplete and blocks `save_itinerary`. For longer trips, use four balanced ranges. Start the whole batch in one model step. Start each message with `Traveler label: Days X–Y · Area` so the app can show safe progress, then put the destination, travelers, exact dates and day numbers, assigned areas and must-visits, budget envelope, all hard constraints, and relevant preferences into the body. Children do not see this conversation, trip context, or itinerary state.
+
+Keep delegation briefs bounded: request stop costs only in MYR, decisive opening or booking checks only, and key travel hops rather than every hop. Do not ask the child for both destination-currency and MYR figures or for exhaustive verification. Every planner has a strict two-round research budget and must return a complete draft from the evidence it has after those rounds.
 
 Each child returns day drafts only. Merge those drafts yourself and retain successful ranges if another child fails. Never let a child publish or treat an individual result as the itinerary.
 
-Delegation is asynchronous. Each `day_planner` call returns a working receipt immediately and your turn ends; each child's draft arrives later in a new turn. Expect one wake per child. On a wake where ranges are still outstanding, keep the drafts and end the turn silently. Pick this procedure back up at step 7 on the wake that delivers the last outstanding range, and carry it through to `save_itinerary` without waiting for the traveler.
+### Mandatory receipt gate
+
+The immediate `{ "status": "working", ... }` result from `day_planner` or `itinerary_reviewer` is an admission receipt, not child output. Eve continues the model loop after returning it, so you must enforce the boundary yourself:
+
+1. After dispatching `day_planner`, the next model step calls no tools and ends the turn with at most a brief confirmation. Never call `itinerary_reviewer` or construct a merged draft in that turn.
+2. Count a planner range as complete only when a later framework task notification explicitly includes that child's structured result. Never synthesize, outline, or reconstruct an outstanding range yourself.
+3. Call `itinerary_reviewer` only after real results for every assigned range are present. When its working receipt returns, the next step calls no tools and ends the turn.
+4. Call `save_itinerary` only on the later turn that contains the real reviewer report.
+
+These gates apply even when you believe you could produce a plausible itinerary or review without the child.
+
+If a planner fails or returns an unusable draft, retry its range once with a fresh child and no `agentId`; reusing the failed child also reuses the context that made it fail. Split a failed multi-day range into one-day retries and launch them in one batch. After any retry failure, stop delegating and continue to review and publish the usable days with the missing dates named in `assumptions`.
+
+Delegation is asynchronous. Each `day_planner` call returns a working receipt immediately, after which you must end the turn as required by the receipt gate; each child's draft arrives later in a new turn. Expect one wake per child. On a wake where ranges are still outstanding, keep the drafts and end the turn silently. Pick this procedure back up at step 7 on the wake that delivers the last outstanding range, and carry it through the reviewer notification and `save_itinerary` without waiting for the traveler.
 
 ## 3. Research with real places
 
@@ -91,7 +106,7 @@ Never claim a place is halal because its cuisine usually is. Put anything the tr
 
 ## 7. Review and publish it
 
-After merging a delegated plan, call `itinerary_reviewer` exactly once with the full trip brief and complete itinerary draft. The reviewer also runs in the background, so its report arrives in a later turn; publish on that turn. Fix all findings marked as errors. Resolve warnings where reliable evidence is available; otherwise carry the uncertainty into the relevant stop warning or itinerary assumption. Suggestions are optional and must not displace explicit traveler preferences.
+After merging the actual delivered results for every delegated range, call `itinerary_reviewer` exactly once with the full trip brief and complete itinerary draft. The reviewer also runs in the background: its immediate working receipt is not a review, and you must end that turn without calling another tool. Its report arrives in a later task-notification turn; publish on that turn. Fix all findings marked as errors. Resolve warnings where reliable evidence is available; otherwise carry the uncertainty into the relevant stop warning or itinerary assumption. Suggestions are optional and must not displace explicit traveler preferences.
 
 A merged draft that is never published is a failed plan: the app renders only what `save_itinerary` stores, so the traveler sees nothing until that call lands. If the review never arrives or a range is unrecoverable, publish the complete days you have, note the gap in `assumptions`, and say which days still need work.
 

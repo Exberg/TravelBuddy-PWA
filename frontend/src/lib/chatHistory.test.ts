@@ -129,7 +129,8 @@ describe('LocalConversationRepository', () => {
     );
 
     expect(demoChat?.title).toBe('Penang trip');
-    expect(demoChat?.events).toEqual([]);
+    expect(demoChat?.events).toHaveLength(5);
+    expect(demoChat?.events.some((event) => event.type === 'action.result')).toBe(true);
     expect(demoChat?.session).toBeUndefined();
     expect(history.chats.some((chat) => chat.id === 'real-trip-chat')).toBe(true);
   });

@@ -6,15 +6,18 @@ import {
   publishedItinerary,
 } from "./delegated-planning";
 
-// Regression for long itinerary turns that previously performed every place
-// lookup serially and sometimes exhausted the turn before save_itinerary.
+// Regression for the real Tokyo session a5debbe1… (2026-09-12). The root
+// correctly delegated the trip, but three-day planner briefs expanded into
+// 10+ model steps and repeated place/route lookups. The task cohort therefore
+// stayed incomplete and the root could never reach itinerary_reviewer or
+// save_itinerary.
 //
 // Delegated planning finishes across several turns, because each background
 // planner wakes the coordinator in a new one. This follows those turns rather
 // than asserting on the dispatch turn alone.
 export default defineEval({
   description:
-    "A long trip delegates bounded day research, reviews the merged plan, and publishes once.",
+    "An eight-day Tokyo trip delegates bounded two-day research, reviews the merged plan, and publishes once.",
   tags: ["itinerary", "subagents", "long-trip"],
   // Following the planners' notification turns takes as long as the research
   // itself, not just the dispatch turn.
@@ -25,21 +28,25 @@ export default defineEval({
         travelBuddy: {
           trip: {
             destination: "Tokyo, Japan",
-            startDate: "2026-11-02",
-            endDate: "2026-11-09",
+            startDate: "2026-09-12",
+            endDate: "2026-09-19",
             nights: 7,
             days: 8,
-            budgetMyr: 9000,
+            budgetMyr: 11000,
             budgetCurrency: "MYR",
             destinationCurrency: "JPY",
-            travelers: 2,
-            travelPreferences:
-              "Local food, calm mornings, anime, and neighbourhood walks. Avoid packed schedules.",
+            travelers: 1,
+            travelPreferences: "I like matcha, dislike",
             mustVisitPlaces: [
               {
-                name: "Meiji Jingu",
-                lat: 35.6764,
-                lng: 139.6993,
+                name: "Sensō-ji",
+                lat: 35.7147651,
+                lng: 139.7966553,
+              },
+              {
+                name: "Tokyo Skytree",
+                lat: 35.7100627,
+                lng: 139.8107004,
               },
             ],
           },
@@ -48,9 +55,9 @@ export default defineEval({
     });
 
     turn.expectOk();
-    t.calledSubagent("day_planner", {
-      count: (count) => count >= 2 && count <= 4,
-    });
+    // Four two-day briefs keep each research task small enough to finish and
+    // let Eve deliver the complete cohort back to the coordinator reliably.
+    t.calledSubagent("day_planner", { count: 4 });
 
     const followed = await followDelegatedPlanning(t, turn);
 
