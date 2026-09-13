@@ -37,11 +37,29 @@ Our Solution is a TravelPlanner website that helps travelers organize their trip
 | **Idea 7: Custom orchestration layer built directly on the Vercel AI SDK** | Dropped in favor of Eve as the orchestration/session layer, using Vercel AI SDK only for model access. Building custom session persistence, subagent coordination, and event streaming from scratch would have duplicated what Eve already provides and increased risk within the hackathon timeframe. |
 | **Idea 8: Hosted database (e.g. Supabase) for trip persistence from day one** | Dropped for the prototype phase. We used a `localStorage`-backed repository abstraction so the core planning experience could be demonstrated without building authentication and a database migration path first. The abstraction keeps a hosted database as a straightforward later swap. |
 
-### 2.2 Ideation Boards
+<details>
+<summary>Screenshots of dropped ideas</summary>
 
+**Idea 3 — Form wizard onboarding (dropped)**
+![Idea 3](https://hackmd.io/_uploads/B1_eDyNFfg.png)
+    
+**Idea 4 — Single-call LLM itinerary generation without live map/place grounding (dropped)**
+![screenshot of single LLM call output](https://hackmd.io/_uploads/rkoNu1VYGl.png)
+
+**Idea 5 — Native mobile app (iOS/Android) instead of a PWA (dropped)**
+![Native App setup proof](https://hackmd.io/_uploads/Sy7xc1NKfg.png)
+
+**Idea 6 — Group/collective budget only, with no per-traveler breakdown (dropped)**
+![Idea 6](https://hackmd.io/_uploads/BkYIq1VYMx.png)
+
+</details>
+
+### 2.2 Ideation Boards
 **Mindmap**
+![MindMap](https://hackmd.io/_uploads/HJ7PgRXKMe.png)
 
 **Problem Tree**
+![Problem Tree](https://hackmd.io/_uploads/B1Tg-07Yzl.png)
 
 **User Flow**
 ![User Flow](https://hackmd.io/_uploads/rkVkgEQtzl.png)
