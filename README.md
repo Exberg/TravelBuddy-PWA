@@ -11,14 +11,25 @@
 ## 1. Project Overview
 
 ### The Problem
-Planning a trip can be difficult because travelers need to use many different applications to find destination, calculating budgets, and plan itineraries. This is a time consuming process and make trip planning more complex.
 
-The main stakeholder are travelers, families, and travel groups who need a convenient way to plan their trips.
+Planning a trip involves many decisions, such as where to go, how much to spend, which activities to choose, and how to arrange everything into a practical itinerary.
 
-Existing Applications such as Google Maps and Trip.com could help  users with booking and location navigation.However, they do not provide a complete travel planning that includes destination planning, budgeting and itinerary creation in one place.
+Most travel applications can provide information, recommendations, or booking options, but they still rely heavily on users to compare choices and make decisions manually. They also often treat each trip independently, without understanding the traveler's preferences, priorities, budget habits, or past choices.
+
+The main stakeholders are **individual travelers, families, and travel groups** who want more personalized guidance when planning a trip. This is especially useful for groups where each traveler may have different interests, budgets, dietary requirements, and travel preferences.
 
 ### Our Solution
-Our Solution is a TravelPlanner website that helps travelers organize their trip plan and refining their trip budget more easily. They can choose their destination, estimate budget and create a travel itineraries in a single platform. This could make trip planning simpler, more organized and less stressful.
+
+TravelBuddy is an agentic travel planning assistant designed to actively support travelers throughout the decision-making process.
+
+Instead of only presenting recommendations, TravelBuddy uses AI agents to understand trip requirements, compare available options, reason about trade-offs, and help build an itinerary that fits the traveler's budget, preferences, and constraints.
+
+Traveler preferences can be synchronized and reused across trips, allowing the system to better understand interests such as preferred activities, food choices, travel style, and places to avoid.
+
+For group travel, these preferences and individual requirements can be considered together, helping TravelBuddy suggest plans that better balance the needs of everyone involved.
+
+The goal is to make trip planning feel less like manually researching and organizing information, and more like working with an intelligent travel companion that helps travelers make better decisions.
+
 
 ---
 
